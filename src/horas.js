@@ -10,7 +10,7 @@ export const historialCrew = {
         { fecha: "Martes 19/05", ubicacion: "Austin, Texas", cant: 8.5 }
     ],
     "7373883909": [ // Edwin López
-        { fecha: "Lunes 18/05", ubicacion: "San Antonio, Texas", cant: 9.0 },
+        { fecha: "Lunes 16/05", ubicacion: "San Antonio, Texas", cant: 9.0 },
         { fecha: "Martes 19/05", ubicacion: "San Antonio, Texas", cant: 9.0 }
     ],
     "7373988349": [ // Luis Alfaro

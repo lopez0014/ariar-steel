@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ariar Steel LLC - Panel Corporativo</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-principal: #070a12;
+            --bg-tarjeta: rgba(15, 23, 42, 0.75);
+            --borde-vidrio: rgba(255, 255, 255, 0.05);
+            --naranja-acero: #f59e0b;
+            --texto-principal: #f1f5f9;
+            --texto-secundario: #64748b;
+            --verde-dinero: #10b981;
+            --rojo-error: #ef4444;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-principal);
+            color: var(--texto-principal);
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ──────── MENU LATERAL RE-ESTILIZADO ──────── */
+        .sidebar {
+            width: 240px;
+            background: #0b0f19;
+            border-right: 1px solid var(--borde-vidrio);
+            display: flex;
+            flex-direction: column;
+            padding: 20px 12px;
+            box-sizing: border-box;
+            justify-content: space-between;
+        }
+
+        .brand {
+            font-size: 0.95rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            padding-left: 8px;
+        }
+
+        .brand span { color: var(--naranja-acero); }
+
+        .menu-items {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .menu-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 14px;
+            color: var(--texto-secundario);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .menu-link:hover, .menu-link.active {
+            color: var(--texto-principal);
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 3px solid var(--naranja-acero);
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 15px 8px 5px 8px;
+            border-top: 1px solid rgba(255,255,255,0.03);
+        }
+        
+        .soporte-link {
+            color: #4facfe;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .seguridad-banner {
+            font-size: 0.72rem;
+            color: #ef4444;
+            font-weight: 700;
+            line-height: 1.3;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* ──────── CONTENEDOR PRINCIPAL ──────── */
+        .contenido-principal {
+            flex: 1;
+            padding: 25px 35px;
+            box-sizing: border-box;
+            max-width: 1100px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .badge-compania {
+            color: #ffffff;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: linear-gradient(135px, #f59e0b, #d97706);
+            padding: 5px 12px;
+            border-radius: 15px;
+            text-transform: uppercase;
+        }
+
+        .vista-seccion { display: none; }
+        .vista-seccion.active { display: block; }
+
+        .modulo-contenedor {
+            background: var(--bg-tarjeta);
+            border: 1px solid var(--borde-vidrio);
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            font-size: 1.05rem;
+            margin: 0 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Bloque de Bienvenida Fijo */
+        .banner-saludo-fijo {
+            background: rgba(245, 158, 11, 0.08);
+            border-left: 4px solid var(--naranja-acero);
+            padding: 15px;
+            border-radius: 4px 12px 12px 4px;
+            margin-bottom: 20px;
+        }
+
+        .banner-saludo-fijo p {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #fbd38d;
+        }
+
+        .banner-saludo-fijo span {
+            display: block;
+            font-size: 0.78rem;
+            color: var(--texto-secundario);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* Selector de Ubicación */
+        .select-custom {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .select-custom:focus { border-color: var(--naranja-acero); }
+
+        /* Aviso de nómina mandatorio */
+        .aviso-nomina {
+            background: rgba(245, 158, 11, 0.06);
+            border: 1px dashed rgba(245, 158, 11, 0.3);
+            border-radius: 12px;
+            padding: 12px 15px;
+            font-size: 0.82rem;
+            color: #fbd38d;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        /* Formularios e Inputs */
+        .grupo-input { margin-bottom: 12px; }
+        .grupo-input label { display: block; font-size: 0.78rem; color: var(--texto-secundario); margin-bottom: 5px; font-weight: 600; }
+        .grupo-input input { width: 100%; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.08); padding: 11px 14px; border-radius: 10px; color: #fff; font-size: 0.85rem; box-sizing: border-box; }
+        .grupo-input input:focus { outline: none; border-color: var(--naranja-acero); }
+
+        .btn-premium { background: linear-gradient(135px, #f59e0b 0%, #d97706 100%); color: #0d131f; border: none; width: 100%; padding: 13px; font-size: 0.85rem; font-weight: 700; border-radius: 10px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: center; align-items: center; gap: 8px; transition: all 0.2s; }
+        .btn-premium:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3); }
+
+        .pantalla-consola { background: rgba(4, 6, 10, 0.5); border: 1px solid rgba(255, 255, 255, 0.02); border-radius: 12px; padding: 20px; min-height: 90px; display: flex; justify-content: center; align-items: center; }
+        .bloque-cita-animado { width: 100%; animation: entradaEfecto 0.4s ease forwards; }
+        .fila-cita { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.04); padding: 9px 0; font-size: 0.85rem; }
+        .fila-cita:last-child { border-bottom: none; }
+        .etiqueta { color: var(--texto-secundario); }
+        .valor { font-weight: 600; }
+        .feedback-msg { font-size: 0.8rem; margin-top: 10px; font-weight: 600; text-align: center; }
+
+        /* Estilo de la tabla de control de fechas */
+        .tabla-semanal-obrero {
+            width: 100%;
+            margin-top: 10px;
+            border-collapse: collapse;
+        }
+        .tabla-semanal-obrero th {
+            text-align: left;
+            font-size: 0.75rem;
+            color: var(--texto-secundario);
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            text-transform: uppercase;
+        }
+        .tabla-semanal-obrero td {
+            padding: 8px 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+
+        @keyframes entradaEfecto {
+            from { opacity: 0; transform: scale(0.98) translateY(3px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        @media (max-width: 768px) { body { flex-direction: column; } .sidebar { width: 100%; } .contenido-principal { padding: 15px; } }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <div>
+            <div class="brand">ARIAR <span>STEEL LLC</span></div>
+            <ul class="menu-items">
+                <li><a class="menu-link active" id="link-dash"><i class="fa-solid fa-clock"></i> Entrar a mis horas</a></li>
+                <li><a class="menu-link" id="link-registro"><i class="fa-solid fa-user-plus"></i> Registro de empleado</a></li>
+                <li><a class="menu-link" id="link-admin"><i class="fa-solid fa-lock"></i> Administración</a></li>
+            </ul>
+        </div>
+
+        <div class="sidebar-footer">
+            <a href="#" class="soporte-link" onclick="alert('Centro de Soporte Aura Software - Contacta a Edwin López'); return false;">
+                <i class="fa-solid fa-headset"></i> ¿Necesitas ayuda o soporte?
+            </a>
+            <div class="seguridad-banner">
+                <i class="fa-solid fa-triangle-exclusion" style="color: var(--naranja-acero)"></i> La seguridad es primero, regrese a casa sano.
+            </div>
+        </div>
+    </nav>
+
+    <main class="contenido-principal">
+        
+        <div class="header-top">
+            <div>
+                <h1 id="titulo-modulo">Entrar a mis horas</h1>
+            </div>
+            <div class="badge-compania">Ariar Steel LLC</div>
+        </div>
+
+        <div id="sec-dash" class="vista-seccion active">
+            
+            <div class="banner-saludo-fijo">
+                <p id="saludo-pantalla">Cargando saludo...</p>
+                <span>Por favor selecciona tu proyecto actual antes de marcar tu tiempo de jornada.</span>
+            </div>
+
+            <div class="modulo-contenedor">
+                <h2><i class="fa-solid fa-map-location-dot" style="color: var(--naranja-acero)"></i> Seleccionar ubicación de la obra</h2>
+                <select class="select-custom" id="selector-obra">
+                    <option value="Austin, Texas">Austin Texas</option>
+                    <option value="San Antonio, Texas">San Antonio Texas</option>
+                    <option value="Wichita, Texas">Wichita Texas</option>
+                </select>
+            </div>
+
+            <div class="modulo-contenedor">
+                <h2><i class="fa-solid fa-fingerprint" style="color: var(--naranja-acero)"></i> Registro de Jornada</h2>
+                <div class="pantalla-consola" id="consola-horas"></div>
+                <button class="btn-premium" id="btn-marcar" style="margin-top: 15px;">
+                    <i class="fa-solid fa-user-check"></i> Marcar Entrada / Salida
+                </button>
+            </div>
+
+            <div class="aviso-nomina">
+                <i class="fa-solid fa-circle-exclamation" style="font-size: 1.1rem; color: var(--naranja-acero);"></i>
+                <span>AVISO: Reportar horas antes del sábado a las 5 p.m. para procesar su pago.</span>
+            </div>
+        </div>
+
+        <div id="sec-registro" class="vista-seccion">
+            <div class="modulo-contenedor" style="max-width: 500px; margin: 0 auto;">
+                <h2><i class="fa-solid fa-id-card" style="color: var(--naranja-acero)"></i> Alta de Nuevo Trabajador</h2>
+                <form id="form-alta-empleado" onsubmit="return false;">
+                    <div class="grupo-input">
+                        <label>Nombre Completo</label>
+                        <input type="text" id="reg-nombre" placeholder="Nombre y Apellido" required>
+                    </div>
+                    <div class="grupo-input">
+                        <label>Número de Teléfono</label>
+                        <input type="tel" id="reg-telefono" placeholder="Ej: 713-XXX-XXXX" required>
+                    </div>
+                    <div class="grupo-input">
+                        <label>Crear Contraseña Pin</label>
+                        <input type="password" id="reg-pass" placeholder="Mínimo 4 dígitos" required>
+                    </div>
+                    <button class="btn-premium" id="btn-guardar-empleado">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Registrar en el Crew
+                    </button>
+                </form>
+                <div id="msg-feedback-registro" class="feedback-msg"></div>
+            </div>
+        </div>
+
+        <div id="sec-admin" class="vista-seccion">
+            <div id="admin-bloqueado" class="modulo-contenedor" style="max-width: 400px; margin: 0 auto; text-align: center;">
+                <i class="fa-solid fa-shield-halved" style="font-size: 2rem; color: var(--naranja-acero); margin-bottom: 15px;"></i>
+                <h2>Acceso Restringido</h2>
+                <p style="font-size: 0.8rem; color: var(--texto-secundario); margin-bottom: 15px;">Introduce la clave maestra de Ariar Steel.</p>
+                <div class="grupo-input">
+                    <input type="password" id="pass-maestra" placeholder="Contraseña de Seguridad">
+                </div>
+                <button class="btn-premium" id="btn-autenticar">
+                    <i class="fa-solid fa-key"></i> Desbloquear Panel
+                </button>
+                <div id="msg-error-admin" class="feedback-msg" style="color: var(--rojo-error);"></div>
+            </div>
+
+            <div id="admin-desbloqueado" class="modulo-contenedor">
+                <div style="background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245,158,11,0.2); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 0.9rem; color: #fff; display:flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-calendar-day" style="color:var(--naranja-acero)"></i> 
+                        Inyección Rápida para el Día de Hoy: <span id="fecha-actual-admin" style="color:var(--naranja-acero);"></span>
+                    </h3>
+                    <p style="font-size:0.78rem; color:var(--texto-secundario); margin:0;">
+                        Usa los controles de abajo de cada empleado para capturar las horas del día de hoy o modificar sus datos generales en tiempo real.
+                    </p>
+                </div>
+                <h2><i class="fa-solid fa-folder-open" style="color: var(--verde-dinero)"></i> Control de Personal y Nómina Dinámica</h2>
+                <div id="tabla-registros-admin"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -253,6 +253,38 @@
             border-bottom: 1px solid rgba(255,255,255,0.04);
         }
 
+        /* ──────── BOTÓN DE REPORTE WHATSAPP ──────── */
+        .container-reporte {
+            text-align: center;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+
+        .btn-whatsapp {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #25D366;
+            color: #ffffff !important;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 12px 20px;
+            border-radius: 10px;
+            width: 100%;
+            box-sizing: border-box;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .btn-whatsapp:hover, .btn-whatsapp:active {
+            background: #128C7E;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(18, 140, 126, 0.3);
+        }
+
         @keyframes entradaEfecto {
             from { opacity: 0; transform: scale(0.98) translateY(3px); }
             to { opacity: 1; transform: scale(1) translateY(0); }
@@ -319,6 +351,15 @@
             <div class="aviso-nomina">
                 <i class="fa-solid fa-circle-exclamation" style="font-size: 1.1rem; color: var(--naranja-acero);"></i>
                 <span>AVISO: Reportar horas antes del sábado a las 5 p.m. para procesar su pago.</span>
+            </div>
+
+            <div class="container-reporte">
+                <a href="https://wa.me/17373883909?text=Oye%20pues%20me%20faltan%20unas%20horas%20de%20tal%20d%C3%ADa%2C%20no%20m%C3%A1s%20para%20avisarte%20para%20que%20el%20lunes%20me%20las%20apuntes%20env%C3%ADen%20las%20horas%20y%20el%20viernes%20ya%20me%20caiga%20mi%20cheque." 
+                   target="_blank" 
+                   class="btn-whatsapp">
+                    <i class="fa-brands fa-whatsapp" style="margin-right: 8px; font-size: 1.1rem;"></i>
+                    ¿Necesitas ayuda con tus horas? Repórtalo a la oficina
+                </a>
             </div>
         </div>
 

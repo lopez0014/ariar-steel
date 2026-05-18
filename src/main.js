@@ -1,5 +1,5 @@
 // =========================================================================
-// CEREBRO CON CREW ACTUALIZADO (7 INTEGRANTES) - ARIAR STEEL LLC
+// CEREBRO CON CREW ACTUALIZADO (8 INTEGRANTES) - ARIAR STEEL LLC
 // =========================================================================
 import { historialCrew } from './horas.js';
 
@@ -11,7 +11,8 @@ const crewAriar = [
     { nombre: "Angel Hernández", telefono: "7262442545", pin: "2545", historialHoras: historialCrew["7262442545"] || [] },
     { nombre: "Mauricio Zavala", telefono: "7373932727", pin: "2727", historialHoras: historialCrew["7373932727"] || [] },
     { nombre: "Denis Mendoza", telefono: "5123590463", pin: "0463", historialHoras: historialCrew["5123590463"] || [] },
-    { nombre: "Josué Muñoz", telefono: "7373786448", pin: "6448", historialHoras: historialCrew["7373786448"] || [] }
+    { nombre: "Josué Muñoz", telefono: "7373786448", pin: "6448", historialHoras: historialCrew["7373786448"] || [] },
+    { nombre: "Hugo Hernández Rivera", telefono: "5127729112", pin: "9112", historialHoras: historialCrew["5127729112"] || [] }
 ];
 
 const links = {

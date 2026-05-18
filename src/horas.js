@@ -116,5 +116,21 @@ export const historialCrew = {
         { fecha: "Jueves 28/05", ubicacion: "San Antonio, Texas", cant: 0.0 },
         { fecha: "Viernes 29/05", ubicacion: "San Antonio, Texas", cant: 0.0 },
         { fecha: "Sábado 30/05", ubicacion: "San Antonio, Texas", cant: 0.0 }
+    ],
+    "5127729112": [ // Hugo Hernández Rivera
+        // PERIODO A: Semana Actual (Del 18/05 al 23/05)
+        { fecha: "Lunes 18/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Martes 19/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Miércoles 20/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Jueves 21/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Viernes 22/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Sábado 23/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        // PERIODO B: Semana Siguiente (Del 25/05 al 30/05)
+        { fecha: "Lunes 25/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Martes 26/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Miércoles 27/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Jueves 28/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Viernes 29/05", ubicacion: "Austin, Texas", cant: 0.0 },
+        { fecha: "Sábado 30/05", ubicacion: "Austin, Texas", cant: 0.0 }
     ]
 };

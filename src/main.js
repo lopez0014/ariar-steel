@@ -1,5 +1,5 @@
 // =========================================================================
-// CEREBRO CON LOGÍSITICA DE PANEL MASTER OPTIMIZADA - ARIAR STEEL LLC
+// CONTROL TOTAL DE POSICIONAMIENTO SUPERIOR - ARIAR STEEL LLC
 // =========================================================================
 import { historialCrew } from './horas.js';
 
@@ -102,34 +102,57 @@ document.getElementById('btn-autenticar')?.addEventListener('click', () => {
         document.getElementById('admin-bloqueado').style.display = 'none';
         document.getElementById('admin-desbloqueado').style.display = 'block';
         actualizarFechaEncabezadoAdmin();
+        
+        // Ejecutamos primero la inyección forzada arriba para ganarle al renderizado de la tabla
+        inyectarBotonWhatsAppAdminArriba(); 
         renderTablaAdmin();
-        inyectarBotonWhatsAppAdminArriba(); // Pintamos el nuevo botón arriba con sus instrucciones
     } else {
         if (errorAdmin) errorAdmin.innerText = "❌ Clave Maestra de Seguridad Incorrecta.";
     }
 });
 
-// --- REMPLAZAR EL BLOQUE SUPERIOR VIEJO POR EL BOTÓN CONFIGURADO ---
+// --- FORZAR EL BOTÓN AL PRINCIPIO ABSOLUTO DE LA SECCIÓN ---
 function inyectarBotonWhatsAppAdminArriba() {
-    // Buscamos el contenedor superior de la galería o el encabezado del panel desbloqueado
-    const contenedorSuperior = document.getElementById('contenedor-galeria-hojas') || document.getElementById('admin-desbloqueado');
+    const panelDesbloqueado = document.getElementById('admin-desbloqueado');
+    const idBotonExiste = document.getElementById('bloque-whatsapp-top');
     
-    if (contenedorSuperior) {
-        // Borramos el texto viejo e inyectamos el botón arriba con el texto descriptivo exacto
-        contenedorSuperior.innerHTML = `
-            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); padding: 16px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
-                <p style="font-size: 0.85rem; color: #94a3b8; font-weight: 600; margin: 0 0 12px 0; line-height: 1.4;">
-                    📸 Captura o selecciona la foto de la hoja firmada por el encargado del frente del trabajo:
-                </p>
-                <button id="btn-subir-horas-whatsapp" style="width:100%; max-width:380px; margin: 0 auto; padding:14px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow: 0 4px 14px rgba(37,211,102,0.25);">
-                    <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> Subir horas
-                </button>
-            </div>
+    // Si ya existe en la pantalla, lo removemos para evitar duplicados abajo
+    if (idBotonExiste) {
+        idBotonExiste.remove();
+    }
+
+    if (panelDesbloqueado) {
+        const divContenedorBoton = document.createElement('div');
+        divContenedorBoton.id = "bloque-whatsapp-top";
+        // Estilos limpios y visibles
+        divContenedorBoton.style.background = "rgba(255, 255, 255, 0.02)";
+        divContenedorBoton.style.border = "1px solid rgba(255, 255, 255, 0.05)";
+        divContenedorBoton.style.padding = "16px";
+        divContenedorBoton.style.borderRadius = "12px";
+        divContenedorBoton.style.marginBottom = "20px";
+        divContenedorBoton.style.textAlign = "center";
+        
+        divContenedorBoton.innerHTML = `
+            <p style="font-size: 0.85rem; color: #94a3b8; font-weight: 600; margin: 0 0 12px 0; line-height: 1.4;">
+                📸 Captura o selecciona la foto de la hoja firmada por el encargado del frente del trabajo:
+            </p>
+            <button id="btn-subir-horas-whatsapp" style="width:100%; max-width:380px; margin: 0 auto; padding:14px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow: 0 4px 14px rgba(37,211,102,0.25);">
+                <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> Subir horas
+            </button>
         `;
+        
+        // Usamos prepend para meterlo al inicio antes de que se pinte la tabla o cualquier otra etiqueta vieja
+        panelDesbloqueado.prepend(divContenedorBoton);
+    }
+
+    // Limpiamos el contenedor viejo por si seguía vivo en el HTML original de la web
+    const contenedorViejo = document.getElementById('contenedor-galeria-hojas');
+    if (contenedorViejo) {
+        contenedorViejo.innerHTML = '';
     }
 }
 
-// Escuchador global de clics para activar WhatsApp
+// Escuchador global para abrir WhatsApp
 document.addEventListener('click', function(e) {
     const btnSubirHoras = e.target.closest('#btn-subir-horas-whatsapp');
     if (btnSubirHoras) {

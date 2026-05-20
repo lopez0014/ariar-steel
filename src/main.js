@@ -6,7 +6,7 @@ import { historialCrew } from './horas.js';
 const CLAVE_MAESTRA_SISTEMA = "ariar2026";
 
 // --- CONFIGURACIÓN DE CONTACTO DE LA EMPRESA ---
-const TELEFONO_ADMIN_WHATSAPP = "17373883909"; // Tu número de recepción
+const TELEFONO_ADMIN_WHATSAPP = "15127508621"; // Tu número de recepción
 
 // --- BASE DE DATOS LOCAL CON TU CREW OFICIAL ---
 const crewInicial = [
@@ -102,44 +102,42 @@ document.getElementById('btn-autenticar')?.addEventListener('click', () => {
         document.getElementById('admin-bloqueado').style.display = 'none';
         document.getElementById('admin-desbloqueado').style.display = 'block';
         actualizarFechaEncabezadoAdmin();
-        renderizarTablaAdmin();
-        inyectarBotonWhatsAppAdmin(); // Inyectamos tu botón en el panel máster inmediatamente
+        renderTablaAdmin();
+        modificarBotonCargaAWhatsApp(); // Reemplaza el botón viejo por el de WhatsApp
     } else {
         if (errorAdmin) errorAdmin.innerText = "❌ Clave Maestra de Seguridad Incorrecta.";
     }
 });
 
-// --- INYECTAR EL BOTÓN DIRECTAMENTE EN TU PANEL DE ADMINISTRACIÓN ---
-function inyectarBotonWhatsAppAdmin() {
-    // Buscamos el contenedor donde antes tenías la cámara o el historial del administrador
-    const areaCargaAdmin = document.getElementById('contenedor-galeria-hojas') || document.getElementById('admin-desbloqueado');
+// --- ENCONTRAR EL BOTÓN VIEJO DE ADJUNTAR FOTO Y REEMPLAZARLO ---
+function modificarBotonCargaAWhatsApp() {
+    // Buscamos el contenedor donde HTML dibuja la zona de adjuntar hojas en el panel
+    const contenedorGaleria = document.getElementById('contenedor-galeria-hojas');
     
-    // Si existe el contenedor, le agregamos tu botón de WhatsApp al principio o final de la sección
-    const idBotonExiste = document.getElementById('btn-whatsapp-admin-directo');
-    if (!idBotonExiste && areaCargaAdmin) {
-        const divContenedorBoton = document.createElement('div');
-        divContenedorBoton.style.margin = "20px 0";
-        divContenedorBoton.innerHTML = `
-            <button id="btn-whatsapp-admin-directo" style="width:100%; max-width:400px; margin: 10px auto; padding:14px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow: 0 4px 12px rgba(37,211,102,0.2);">
-                <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> Subir Hoja de Turno a mi WhatsApp
-            </button>
+    if (contenedorGaleria) {
+        // Cambiamos todo su contenido interno por tu nuevo botón limpio de "Subir horas"
+        contenedorGaleria.innerHTML = `
+            <div style="text-align: center; padding: 15px 0;">
+                <button id="btn-subir-horas-whatsapp" style="width:100%; max-width:380px; padding:14px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow: 0 4px 12px rgba(37,211,102,0.3);">
+                    <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> Subir horas
+                </button>
+            </div>
         `;
-        areaCargaAdmin.appendChild(divContenedorBoton);
     }
 }
 
-// Escuchador global para activar la redirección cuando tú hagas clic en la administración
+// Escuchador del clic para el nuevo botón "Subir horas" en administración
 document.addEventListener('click', function(e) {
-    const botonWhatsAppAdmin = e.target.closest('#btn-whatsapp-admin-directo');
-    if (botonWhatsAppAdmin) {
+    const btnSubirHoras = e.target.closest('#btn-subir-horas-whatsapp');
+    if (btnSubirHoras) {
         const fechaYHora = new Date().toLocaleString('es-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        const textoMensaje = `Ariar Steel LLC - Control de Administración\nRecibiendo copia de Hoja de Turno Física.\nFecha de captura: ${fechaYHora}`;
+        const textoMensaje = `Ariar Steel LLC - Envío de Hoja de Asistencia\nFecha de reporte: ${fechaYHora}\n\n[Adjunta aquí la foto de la hoja de turno física]`;
         const urlWhatsApp = `https://wa.me/${TELEFONO_ADMIN_WHATSAPP}?text=${encodeURIComponent(textoMensaje)}`;
         window.open(urlWhatsApp, '_blank');
     }
 });
 
-function renderizarTablaAdmin() {
+function renderTablaAdmin() {
     const tablaRegistrosAdmin = document.getElementById('tabla-registros-admin');
     if (!tablaRegistrosAdmin) return;
 
@@ -198,7 +196,7 @@ function renderizarTablaAdmin() {
         el.addEventListener('input', (e) => { crewAriar[e.target.getAttribute('data-id')].pin = e.target.value.trim(); sincronizarBaseLocal(); });
     });
     document.querySelectorAll('.btn-eliminar-dinamico').forEach(el => {
-        el.addEventListener('click', (e) => { crewAriar.splice(e.target.closest('button').getAttribute('data-id'), 1); sincronizarBaseLocal(); renderizarTablaAdmin(); });
+        el.addEventListener('click', (e) => { crewAriar.splice(e.target.closest('button').getAttribute('data-id'), 1); sincronizarBaseLocal(); renderTablaAdmin(); });
     });
 }
 
@@ -210,7 +208,6 @@ function inyectarHorasProceso(idx, cantHoras) {
     sincronizarBaseLocal();
 }
 
-// (El resto de las funciones de navegación estructural se quedan exactamente igual)
 function inyectarUbicacionProceso(idx, ubicacionTxt) {
     const fechaHoy = obtenerFechaFormateada();
     let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
@@ -239,5 +236,63 @@ btnMarcar?.addEventListener('click', () => {
     const emp = crewAriar.find(e => e.telefono === telefonoInput && e.pin === pinInput);
 
     if (emp) {
-        const saludoDinamico = obtenerSaludoSegunHora();
-        const totalS
+        const totalSemanales = emp.historialHoras.reduce((acc, obj) => acc + obj.cant, 0);
+        let filasTablaHTML = "";
+        if (emp.historialHoras.length === 0) {
+            filasTablaHTML = `<tr><td colspan="3" style="text-align:center; color:#64748b; font-size:0.8rem; padding: 15px 0;">No tienes horas capturadas en este periodo.</td></tr>`;
+        } else {
+            emp.historialHoras.forEach(registro => {
+                filasTablaHTML += `<tr><td style="font-weight:600; color:#fff;">${registro.fecha}</td><td style="color:#64748b;">${registro.ubicacion}</td><td style="text-align:right; font-weight:700; color:var(--texto-principal);">${registro.cant} hrs</td></tr>`;
+            });
+        }
+
+        consolaHoras.innerHTML = `
+            <div class="bloque-cita-animado" style="width:100%; text-align:left;">
+                <div style="background: rgba(16, 185, 129, 0.1); padding: 6px; border-radius: 6px; font-weight:700; color:#10b981; text-align:center; margin-bottom:8px; font-size:0.8rem;">
+                    <i class="fa-solid fa-user-shield"></i> Reporte Oficial de: ${emp.nombre}
+                </div>
+                <table class="tabla-semanal-obrero" style="margin-bottom: 15px;">
+                    <thead>
+                        <tr><th>Fecha del Día</th><th>Proyecto / Obra</th><th style="text-align:right;">Horas Aprobadas</th></tr>
+                    </thead>
+                    <tbody>
+                        ${filasTablaHTML}
+                        <tr style="border-top:2px solid var(--naranja-acero);">
+                            <td colspan="2" style="font-weight:800; color:#fff; padding-top:10px;">TOTAL ACUMULADO:</td>
+                            <td style="text-align:right; font-weight:800; color:#10b981; font-size:1rem; padding-top:10px;">${totalSemanales} hrs</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+        btnMarcar.innerHTML = `<i class="fa-solid fa-arrow-left-long"></i> Cerrar Consulta Privada`;
+        btnMarcar.style.background = "linear-gradient(135px, #4b5563 0%, #1f2937 100%)";
+        btnMarcar.style.color = "#fff";
+    } else {
+        if (errorMsg) errorMsg.innerText = "❌ Usuario o PIN incorrectos.";
+    }
+});
+
+// --- REGISTRO DE NUEVO TRABAJADOR ---
+const btnGuardarEmpleado = document.getElementById('btn-guardar-empleado');
+const msgFeedback = document.getElementById('msg-feedback-registro');
+
+btnGuardarEmpleado?.addEventListener('click', () => {
+    const nombre = document.getElementById('reg-nombre').value.trim();
+    const telefono = document.getElementById('reg-telefono').value.trim();
+    const pin = document.getElementById('reg-pass').value.trim();
+
+    if (!nombre || !telefono || !pin) return;
+
+    const existe = crewAriar.some(e => e.telefono === telefono);
+    if (existe) {
+        if (msgFeedback) { msgFeedback.style.color = "var(--rojo-error)"; msgFeedback.innerText = "❌ Este número de teléfono ya está registrado."; }
+        return;
+    }
+
+    crewAriar.push({ nombre, telefono, pin, historialHoras: [] });
+    sincronizarBaseLocal();
+
+    if (msgFeedback) { msgFeedback.style.color = "var(--verde-dinero)"; msgFeedback.innerText = `¡${nombre} registrado con éxito!`; }
+    document.getElementById('form-alta-empleado').reset();
+});

@@ -6,7 +6,7 @@ import { historialCrew } from './horas.js';
 const CLAVE_MAESTRA_SISTEMA = "ariar2026";
 
 // --- CONFIGURACIÓN DE CONTACTO DE LA EMPRESA ---
-const TELEFONO_ADMIN_WHATSAPP = "17373883909"; // Tu número de recepción
+const TELEFONO_ADMIN_WHATSAPP = "15127508621"; // Tu número de recepción
 
 // --- BASE DE DATOS LOCAL CON TU CREW OFICIAL ---
 const crewInicial = [

@@ -1,12 +1,12 @@
 // =========================================================================
-// CEREBRO CON CORRECCIÓN EN PANEL DE ADMINISTRACIÓN - ARIAR STEEL LLC
+// CEREBRO CON LOGÍSITICA DE PANEL MASTER OPTIMIZADA - ARIAR STEEL LLC
 // =========================================================================
 import { historialCrew } from './horas.js';
 
 const CLAVE_MAESTRA_SISTEMA = "ariar2026";
 
 // --- CONFIGURACIÓN DE CONTACTO DE LA EMPRESA ---
-const TELEFONO_ADMIN_WHATSAPP = "15127508621"; // Tu número de recepción
+const TELEFONO_ADMIN_WHATSAPP = "17373883909"; // Tu número de recepción
 
 // --- BASE DE DATOS LOCAL CON TU CREW OFICIAL ---
 const crewInicial = [
@@ -103,22 +103,25 @@ document.getElementById('btn-autenticar')?.addEventListener('click', () => {
         document.getElementById('admin-desbloqueado').style.display = 'block';
         actualizarFechaEncabezadoAdmin();
         renderTablaAdmin();
-        modificarBotonCargaAWhatsApp(); // Reemplaza el botón viejo por el de WhatsApp
+        inyectarBotonWhatsAppAdminArriba(); // Pintamos el nuevo botón arriba con sus instrucciones
     } else {
         if (errorAdmin) errorAdmin.innerText = "❌ Clave Maestra de Seguridad Incorrecta.";
     }
 });
 
-// --- ENCONTRAR EL BOTÓN VIEJO DE ADJUNTAR FOTO Y REEMPLAZARLO ---
-function modificarBotonCargaAWhatsApp() {
-    // Buscamos el contenedor donde HTML dibuja la zona de adjuntar hojas en el panel
-    const contenedorGaleria = document.getElementById('contenedor-galeria-hojas');
+// --- REMPLAZAR EL BLOQUE SUPERIOR VIEJO POR EL BOTÓN CONFIGURADO ---
+function inyectarBotonWhatsAppAdminArriba() {
+    // Buscamos el contenedor superior de la galería o el encabezado del panel desbloqueado
+    const contenedorSuperior = document.getElementById('contenedor-galeria-hojas') || document.getElementById('admin-desbloqueado');
     
-    if (contenedorGaleria) {
-        // Cambiamos todo su contenido interno por tu nuevo botón limpio de "Subir horas"
-        contenedorGaleria.innerHTML = `
-            <div style="text-align: center; padding: 15px 0;">
-                <button id="btn-subir-horas-whatsapp" style="width:100%; max-width:380px; padding:14px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow: 0 4px 12px rgba(37,211,102,0.3);">
+    if (contenedorSuperior) {
+        // Borramos el texto viejo e inyectamos el botón arriba con el texto descriptivo exacto
+        contenedorSuperior.innerHTML = `
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); padding: 16px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
+                <p style="font-size: 0.85rem; color: #94a3b8; font-weight: 600; margin: 0 0 12px 0; line-height: 1.4;">
+                    📸 Captura o selecciona la foto de la hoja firmada por el encargado del frente del trabajo:
+                </p>
+                <button id="btn-subir-horas-whatsapp" style="width:100%; max-width:380px; margin: 0 auto; padding:14px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow: 0 4px 14px rgba(37,211,102,0.25);">
                     <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> Subir horas
                 </button>
             </div>
@@ -126,12 +129,12 @@ function modificarBotonCargaAWhatsApp() {
     }
 }
 
-// Escuchador del clic para el nuevo botón "Subir horas" en administración
+// Escuchador global de clics para activar WhatsApp
 document.addEventListener('click', function(e) {
     const btnSubirHoras = e.target.closest('#btn-subir-horas-whatsapp');
     if (btnSubirHoras) {
         const fechaYHora = new Date().toLocaleString('es-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        const textoMensaje = `Ariar Steel LLC - Envío de Hoja de Asistencia\nFecha de reporte: ${fechaYHora}\n\n[Adjunta aquí la foto de la hoja de turno física]`;
+        const textoMensaje = `Ariar Steel LLC - Envío de Hoja de Asistencia\nFecha de reporte: ${fechaYHora}\n\n[Adjunta aquí la foto de la hoja de turno firmada]`;
         const urlWhatsApp = `https://wa.me/${TELEFONO_ADMIN_WHATSAPP}?text=${encodeURIComponent(textoMensaje)}`;
         window.open(urlWhatsApp, '_blank');
     }

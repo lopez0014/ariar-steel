@@ -23,7 +23,7 @@ export const historialCrew = {
     ],
     "7373883909": [ // Edwin López
         // PERIODO A: Semana Actual (Del 18/05 al 23/05)
-        { fecha: "Lunes 18/05", ubicacion: "San Antonio, Texas", cant: 0.0 },
+        { fecha: "Lunes 18/05", ubicacion: "San Antonio, Texas", cant: 9.0 },
         { fecha: "Martes 19/05", ubicacion: "San Antonio, Texas", cant: 0.0 },
         { fecha: "Miércoles 20/05", ubicacion: "San Antonio, Texas", cant: 0.0 },
         { fecha: "Jueves 21/05", ubicacion: "San Antonio, Texas", cant: 0.0 },

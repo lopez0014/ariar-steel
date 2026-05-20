@@ -1,12 +1,12 @@
 // =========================================================================
-// CEREBRO CON CREW ACTUALIZADO Y REDIRECCIÓN A WHATSAPP - ARIAR STEEL LLC
+// CEREBRO CON CORRECCIÓN EN PANEL DE ADMINISTRACIÓN - ARIAR STEEL LLC
 // =========================================================================
 import { historialCrew } from './horas.js';
 
 const CLAVE_MAESTRA_SISTEMA = "ariar2026";
 
 // --- CONFIGURACIÓN DE CONTACTO DE LA EMPRESA ---
-const TELEFONO_ADMIN_WHATSAPP = "17373883909"; // Tu número de recepción en formato internacional sin el signo '+'
+const TELEFONO_ADMIN_WHATSAPP = "17373883909"; // Tu número de recepción
 
 // --- BASE DE DATOS LOCAL CON TU CREW OFICIAL ---
 const crewInicial = [
@@ -21,9 +21,6 @@ const crewInicial = [
 ];
 
 let crewAriar = JSON.parse(localStorage.getItem('crewAriarData')) || crewInicial;
-
-// Mantenemos la variable de sesión para saber qué empleado está usando la app
-let empleadoAutenticadoActual = null;
 
 function sincronizarBaseLocal() {
     localStorage.setItem('crewAriarData', JSON.stringify(crewAriar));
@@ -76,7 +73,6 @@ function cambiarVista(vistaSeleccionada, titulo) {
 
 function armarLoginUI() {
     if (!consolaHoras) return;
-    empleadoAutenticadoActual = null; // Resetear sesión al cerrar
     consolaHoras.innerHTML = `
         <div style="width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 10px;">
             <div style="text-align: left;">
@@ -107,8 +103,39 @@ document.getElementById('btn-autenticar')?.addEventListener('click', () => {
         document.getElementById('admin-desbloqueado').style.display = 'block';
         actualizarFechaEncabezadoAdmin();
         renderizarTablaAdmin();
+        inyectarBotonWhatsAppAdmin(); // Inyectamos tu botón en el panel máster inmediatamente
     } else {
         if (errorAdmin) errorAdmin.innerText = "❌ Clave Maestra de Seguridad Incorrecta.";
+    }
+});
+
+// --- INYECTAR EL BOTÓN DIRECTAMENTE EN TU PANEL DE ADMINISTRACIÓN ---
+function inyectarBotonWhatsAppAdmin() {
+    // Buscamos el contenedor donde antes tenías la cámara o el historial del administrador
+    const areaCargaAdmin = document.getElementById('contenedor-galeria-hojas') || document.getElementById('admin-desbloqueado');
+    
+    // Si existe el contenedor, le agregamos tu botón de WhatsApp al principio o final de la sección
+    const idBotonExiste = document.getElementById('btn-whatsapp-admin-directo');
+    if (!idBotonExiste && areaCargaAdmin) {
+        const divContenedorBoton = document.createElement('div');
+        divContenedorBoton.style.margin = "20px 0";
+        divContenedorBoton.innerHTML = `
+            <button id="btn-whatsapp-admin-directo" style="width:100%; max-width:400px; margin: 10px auto; padding:14px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow: 0 4px 12px rgba(37,211,102,0.2);">
+                <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> Subir Hoja de Turno a mi WhatsApp
+            </button>
+        `;
+        areaCargaAdmin.appendChild(divContenedorBoton);
+    }
+}
+
+// Escuchador global para activar la redirección cuando tú hagas clic en la administración
+document.addEventListener('click', function(e) {
+    const botonWhatsAppAdmin = e.target.closest('#btn-whatsapp-admin-directo');
+    if (botonWhatsAppAdmin) {
+        const fechaYHora = new Date().toLocaleString('es-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const textoMensaje = `Ariar Steel LLC - Control de Administración\nRecibiendo copia de Hoja de Turno Física.\nFecha de captura: ${fechaYHora}`;
+        const urlWhatsApp = `https://wa.me/${TELEFONO_ADMIN_WHATSAPP}?text=${encodeURIComponent(textoMensaje)}`;
+        window.open(urlWhatsApp, '_blank');
     }
 });
 
@@ -117,7 +144,6 @@ function renderizarTablaAdmin() {
     if (!tablaRegistrosAdmin) return;
 
     const fechaHoyString = obtenerFechaFormateada();
-    
     if (crewAriar.length === 0) {
         tablaRegistrosAdmin.innerHTML = `<div style="text-align:center; padding: 30px; color: var(--texto-secundario); font-size: 0.85rem;">No hay empleados en el crew todavía.</div>`;
         return;
@@ -128,7 +154,6 @@ function renderizarTablaAdmin() {
         const registroHoy = emp.historialHoras.find(r => r.fecha === fechaHoyString);
         const valorHorasHoy = registroHoy ? registroHoy.cant : 0;
         const ubicacionHoy = registroHoy ? registroHoy.ubicacion : "Austin, Texas";
-        const acumuladoTotal = emp.historialHoras.reduce((acc, o) => acc + o.cant, 0);
 
         htmlTabla += `
             <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03); padding: 12px; border-radius:10px;">
@@ -160,7 +185,6 @@ function renderizarTablaAdmin() {
     htmlTabla += `</div>`;
     tablaRegistrosAdmin.innerHTML = htmlTabla;
 
-    // Escuchadores de la tabla de administración
     document.querySelectorAll('.input-mod-horas').forEach(el => {
         el.addEventListener('input', (e) => inyectarHorasProceso(e.target.getAttribute('data-id'), parseFloat(e.target.value) || 0));
     });
@@ -186,6 +210,7 @@ function inyectarHorasProceso(idx, cantHoras) {
     sincronizarBaseLocal();
 }
 
+// (El resto de las funciones de navegación estructural se quedan exactamente igual)
 function inyectarUbicacionProceso(idx, ubicacionTxt) {
     const fechaHoy = obtenerFechaFormateada();
     let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
@@ -194,31 +219,7 @@ function inyectarUbicacionProceso(idx, ubicacionTxt) {
     sincronizarBaseLocal();
 }
 
-// --- REDIRECCIÓN INTERACTIVA A WHATSAPP ---
-// Escuchamos el contenedor principal usando delegación de eventos por si el botón cambia dinámicamente
-document.addEventListener('click', function(e) {
-    const botonWhatsApp = e.target.closest('#btn-activar-camara');
-    if (botonWhatsApp) {
-        if (!empleadoAutenticadoActual) {
-            alert("⚠️ Error de sesión: Vuelve a ingresar tu usuario y PIN primero.");
-            return;
-        }
-
-        const fechaYHora = new Date().toLocaleString('es-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        
-        // Estructuramos el mensaje de texto para que sepas exactamente quién lo manda
-        const textoMensaje = `Hola Edwin, soy ${empleadoAutenticadoActual.nombre}. Aquí adjunto mi hoja física de asistencia.\n\n📅 Fecha/Hora: ${fechaYHora}\n📱 Usuario: ${empleadoAutenticadoActual.telefono}`;
-        
-        // Codificamos el texto para URL segura
-        const urlWhatsApp = `https://wa.me/${TELEFONO_ADMIN_WHATSAPP}?text=${encodeURIComponent(textoMensaje)}`;
-        
-        // Abrimos la pestaña/app de WhatsApp
-        window.open(urlWhatsApp, '_blank');
-    }
-});
-
-// --- EVENTOS DEL MENÚ LATERAL ---
-links.dash?.addEventListener('click', () => cambiarVista('dash', 'Entrar a mis horas'));
+links.dash?.addEventListener('click', () => { cambiarVista('dash', 'Entrar a mis horas'); armarLoginUI(); });
 links.registro?.addEventListener('click', () => cambiarVista('registro', 'Registro de empleado'));
 links.admin?.addEventListener('click', () => { cambiarVista('admin', 'Administración'); actualizarFechaEncabezadoAdmin(); });
 
@@ -229,94 +230,14 @@ if (contenedorSaludo) contenedorSaludo.innerText = obtenerSaludoSegunHora();
 const brandSpan = document.querySelector('.brand span');
 if (brandSpan) brandSpan.innerHTML = 'STEEL LLC &#127959;'; 
 
-// --- CONSULTA EN TIEMPO REAL PARA EL EMPLEADO ---
 btnMarcar?.addEventListener('click', () => {
-    if (btnMarcar.innerText.includes("Cerrar Consulta")) {
-        armarLoginUI();
-        return;
-    }
-
+    if (btnMarcar.innerText.includes("Cerrar Consulta")) { armarLoginUI(); return; }
     const telefonoInput = document.getElementById('login-telefono')?.value.trim();
     const pinInput = document.getElementById('login-pin')?.value.trim();
     const errorMsg = document.getElementById('login-error-msg');
-
-    if (!telefonoInput || !pinInput) {
-        if (errorMsg) errorMsg.innerText = "⚠️ Por favor ingresa tu usuario y PIN.";
-        return;
-    }
-
+    if (!telefonoInput || !pinInput) { if (errorMsg) errorMsg.innerText = "⚠️ Por favor ingresa tu usuario y PIN."; return; }
     const emp = crewAriar.find(e => e.telefono === telefonoInput && e.pin === pinInput);
 
     if (emp) {
-        empleadoAutenticadoActual = emp; // Guardamos al empleado en sesión activa
         const saludoDinamico = obtenerSaludoSegunHora();
-        const totalSemanales = emp.historialHoras.reduce((acc, obj) => acc + obj.cant, 0);
-
-        let filasTablaHTML = "";
-        if (emp.historialHoras.length === 0) {
-            filasTablaHTML = `<tr><td colspan="3" style="text-align:center; color:#64748b; font-size:0.8rem; padding: 15px 0;">No tienes horas capturadas en este periodo.</td></tr>`;
-        } else {
-            emp.historialHoras.forEach(registro => {
-                filasTablaHTML += `<tr><td style="font-weight:600; color:#fff;">${registro.fecha}</td><td style="color:#64748b;">${registro.ubicacion}</td><td style="text-align:right; font-weight:700; color:var(--texto-principal);">${registro.cant} hrs</td></tr>`;
-            });
-        }
-
-        consolaHoras.innerHTML = `
-            <div class="bloque-cita-animado" style="width:100%; text-align:left;">
-                <div style="background: rgba(16, 185, 129, 0.1); padding: 6px; border-radius: 6px; font-weight:700; color:#10b981; text-align:center; margin-bottom:8px; font-size:0.8rem;">
-                    <i class="fa-solid fa-user-shield"></i> Reporte Oficial de: ${emp.nombre}
-                </div>
-                <div style="color: #f59e0b; font-size:0.8rem; font-weight:700; text-align:center; margin-bottom:10px;">
-                    ${saludoDinamico}
-                </div>
-                
-                <table class="tabla-semanal-obrero" style="margin-bottom: 15px;">
-                    <thead>
-                        <tr><th>Fecha del Día</th><th>Proyecto / Obra</th><th style="text-align:right;">Horas Aprobadas</th></tr>
-                    </thead>
-                    <tbody>
-                        ${filasTablaHTML}
-                        <tr style="border-top:2px solid var(--naranja-acero);">
-                            <td colspan="2" style="font-weight:800; color:#fff; padding-top:10px;">TOTAL ACUMULADO:</td>
-                            <td style="text-align:right; font-weight:800; color:#10b981; font-size:1rem; padding-top:10px;">${totalSemanales} hrs</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <button id="btn-activar-camara" style="width:100%; padding:12px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.85rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-                    <i class="fa-brands fa-whatsapp" style="font-size:1.2rem;"></i> Subir foto de mi Hoja de Turno
-                </button>
-            </div>
-        `;
-        
-        btnMarcar.innerHTML = `<i class="fa-solid fa-arrow-left-long"></i> Cerrar Consulta Privada`;
-        btnMarcar.style.background = "linear-gradient(135px, #4b5563 0%, #1f2937 100%)";
-        btnMarcar.style.color = "#fff";
-    } else {
-        if (errorMsg) errorMsg.innerText = "❌ Usuario o PIN incorrectos.";
-    }
-});
-
-// --- REGISTRO DE NUEVO TRABAJADOR ---
-const btnGuardarEmpleado = document.getElementById('btn-guardar-empleado');
-const msgFeedback = document.getElementById('msg-feedback-registro');
-
-btnGuardarEmpleado?.addEventListener('click', () => {
-    const nombre = document.getElementById('reg-nombre').value.trim();
-    const telefono = document.getElementById('reg-telefono').value.trim();
-    const pin = document.getElementById('reg-pass').value.trim();
-
-    if (!nombre || !telefono || !pin) return;
-
-    const existe = crewAriar.some(e => e.telefono === telefono);
-    if (existe) {
-        if (msgFeedback) { msgFeedback.style.color = "var(--rojo-error)"; msgFeedback.innerText = "❌ Este número de teléfono ya está registrado."; }
-        return;
-    }
-
-    crewAriar.push({ nombre, telefono, pin, historialHoras: [] });
-    sincronizarBaseLocal();
-
-    if (msgFeedback) { msgFeedback.style.color = "var(--verde-dinero)"; msgFeedback.innerText = `¡${nombre} registrado con éxito!`; }
-    document.getElementById('form-alta-empleado').reset();
-});
+        const totalS

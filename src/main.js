@@ -1,10 +1,12 @@
 // =========================================================================
-// CEREBRO CON CREW ACTUALIZADO (8 INTEGRANTES) - ARIAR STEEL LLC
+// CEREBRO CON CREW ACTUALIZADO Y PERSISTENCIA LOCAL - ARIAR STEEL LLC
 // =========================================================================
 import { historialCrew } from './horas.js';
 
-// --- BASE DE DATOS LOCAL CON TU CREW OFICIAL (CONECTADA A HORAS.JS) ---
-const crewAriar = [
+const CLAVE_MAESTRA_SISTEMA = "ariar2026";
+
+// --- BASE DE DATOS LOCAL CON TU CREW OFICIAL (CON PERSISTENCIA) ---
+const crewInicial = [
     { nombre: "Melvin", telefono: "7377109064", pin: "9064", historialHoras: historialCrew["7377109064"] || [] },
     { nombre: "Edwin López", telefono: "7373883909", pin: "3909", historialHoras: historialCrew["7373883909"] || [] },
     { nombre: "Luis Alfaro", telefono: "7373988349", pin: "8349", historialHoras: historialCrew["7373988349"] || [] },
@@ -14,6 +16,18 @@ const crewAriar = [
     { nombre: "Josué Muñoz", telefono: "7373786448", pin: "6448", historialHoras: historialCrew["7373786448"] || [] },
     { nombre: "Hugo Hernández Rivera", telefono: "5127729112", pin: "9112", historialHoras: historialCrew["5127729112"] || [] }
 ];
+
+// Cargar del localStorage si ya existen datos modificados, sino usar la base de arriba
+let crewAriar = JSON.parse(localStorage.getItem('crewAriarData')) || crewInicial;
+let historialHojasFotos = JSON.parse(localStorage.getItem('historialHojasFotos')) || [];
+
+function sincronizarBaseLocal() {
+    localStorage.setItem('crewAriarData', JSON.stringify(crewAriar));
+}
+
+function sincronizarFotosLocal() {
+    localStorage.setItem('historialHojasFotos', JSON.stringify(historialHojasFotos));
+}
 
 const links = {
     dash: document.getElementById('link-dash'),
@@ -83,7 +97,23 @@ function armarLoginUI() {
     }
 }
 
-// --- RENDERIZAR TABLA ADMINISTRACIÓN ---
+// --- AUTENTICACIÓN PANEL DE CONTROL MÁSTER ---
+document.getElementById('btn-autenticar')?.addEventListener('click', () => {
+    const passMaestra = document.getElementById('pass-maestra')?.value;
+    const errorAdmin = document.getElementById('msg-error-admin');
+    
+    if (passMaestra === CLAVE_MAESTRA_SISTEMA) {
+        document.getElementById('admin-bloqueado').style.display = 'none';
+        document.getElementById('admin-desbloqueado').style.display = 'block';
+        actualizarFechaEncabezadoAdmin();
+        renderizarTablaAdmin();
+        renderizarGaleriaHojas();
+    } else {
+        if (errorAdmin) errorAdmin.innerText = "❌ Clave Maestra de Seguridad Incorrecta.";
+    }
+});
+
+// --- RENDERIZAR TABLA ADMINISTRACIÓN CON LOS ESCUCHADORES AUTO-GUARDABLES ---
 function renderizarTablaAdmin() {
     const tablaRegistrosAdmin = document.getElementById('tabla-registros-admin');
     if (!tablaRegistrosAdmin) return;
@@ -113,7 +143,7 @@ function renderizarTablaAdmin() {
                 
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <span><i class="fa-solid fa-user-helmet-safety" style="color: var(--naranja-acero);"></i> <strong>${emp.nombre}</strong></span>
-                    <button onclick="eliminarEmpleadoCrew(${idx})" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight:700; cursor:pointer;">
+                    <button class="btn-eliminar-dinamico" data-id="${idx}" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight:700; cursor:pointer;">
                         <i class="fa-solid fa-trash-can"></i> Eliminar
                     </button>
                 </div>
@@ -124,15 +154,15 @@ function renderizarTablaAdmin() {
                 </div>
                 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:12px;">
-                    <input type="text" value="${emp.telefono}" placeholder="Usuario" oninput="modificarDatosBaseCrew(${idx}, 'telefono', this.value)" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#fff; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center;">
-                    <input type="text" value="${emp.pin}" placeholder="PIN" oninput="modificarDatosBaseCrew(${idx}, 'pin', this.value)" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#f59e0b; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center; font-weight:700;">
+                    <input type="text" value="${emp.telefono}" placeholder="Usuario" class="input-mod-telefono" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#fff; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center;">
+                    <input type="text" value="${emp.pin}" placeholder="PIN" class="input-mod-pin" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#f59e0b; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center; font-weight:700;">
                 </div>
 
                 <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; display:flex; flex-direction:column; gap:8px;">
                     
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:0.75rem; color:var(--texto-secundario);"><i class="fa-solid fa-location-dot"></i> Proyecto / Obra:</span>
-                        <select id="ubicacion-hoy-${idx}" onchange="inyectarDatosFechaHoy(${idx})" style="background:#000; border:1px solid rgba(255,255,255,0.1); color:#fff; padding:4px 8px; border-radius:4px; font-size:0.78rem;">
+                        <select class="select-mod-ubicacion" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.1); color:#fff; padding:4px 8px; border-radius:4px; font-size:0.78rem;">
                             <option value="Austin, Texas" ${ubicacionHoy === "Austin, Texas" ? "selected" : ""}>Austin, TX</option>
                             <option value="San Antonio, Texas" ${ubicacionHoy === "San Antonio, Texas" ? "selected" : ""}>San Antonio, TX</option>
                             <option value="Wichita, Texas" ${ubicacionHoy === "Wichita, Texas" ? "selected" : ""}>Wichita, TX</option>
@@ -142,11 +172,11 @@ function renderizarTablaAdmin() {
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:0.75rem; color:var(--texto-secundario);"><i class="fa-regular fa-clock"></i> Horas de Hoy:</span>
                         <input type="number" 
-                               id="horas-hoy-${idx}"
+                               class="input-mod-horas"
+                               data-id="${idx}"
                                value="${valorHorasHoy}" 
                                min="0" 
                                step="0.5" 
-                               oninput="inyectarDatosFechaHoy(${idx})" 
                                style="width:80px; background: #000; border:1px solid rgba(255,255,255,0.1); color:#fff; text-align:center; padding:3px; border-radius:4px; font-weight:700;">
                     </div>
                 </div>
@@ -155,15 +185,147 @@ function renderizarTablaAdmin() {
     });
     htmlTabla += `</div>`;
     tablaRegistrosAdmin.innerHTML = htmlTabla;
+
+    // --- CAPTURA DE EVENTOS DINÁMICOS PARA MODIFICACIÓN DIRECTA ---
+    document.querySelectorAll('.input-mod-horas').forEach(element => {
+        element.addEventListener('input', (e) => {
+            const index = e.target.getAttribute('data-id');
+            const numHoras = parseFloat(e.target.value) || 0;
+            inyectarHorasProceso(index, numHoras);
+        });
+    });
+
+    document.querySelectorAll('.select-mod-ubicacion').forEach(element => {
+        element.addEventListener('change', (e) => {
+            const index = e.target.getAttribute('data-id');
+            const txtUbicacion = e.target.value;
+            inyectarUbicacionProceso(index, txtUbicacion);
+        });
+    });
+
+    document.querySelectorAll('.input-mod-telefono').forEach(element => {
+        element.addEventListener('input', (e) => {
+            const index = e.target.getAttribute('data-id');
+            crewAriar[index].telefono = e.target.value.trim();
+            sincronizarBaseLocal();
+        });
+    });
+
+    document.querySelectorAll('.input-mod-pin').forEach(element => {
+        element.addEventListener('input', (e) => {
+            const index = e.target.getAttribute('data-id');
+            crewAriar[index].pin = e.target.value.trim();
+            sincronizarBaseLocal();
+        });
+    });
+
+    document.querySelectorAll('.btn-eliminar-dinamico').forEach(element => {
+        element.addEventListener('click', (e) => {
+            const index = e.target.closest('button').getAttribute('data-id');
+            crewAriar.splice(index, 1);
+            sincronizarBaseLocal();
+            renderizarTablaAdmin();
+        });
+    });
 }
 
-// --- EVENTOS DEL MENÚ ---
+// Lógica interna para inyectar datos y actualizar acumulados sin recargar
+function inyectarHorasProceso(idx, cantHoras) {
+    const fechaHoy = obtenerFechaFormateada();
+    let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
+    
+    if (registro) {
+        registro.cant = cantHoras;
+    } else {
+        const obraActual = document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value;
+        crewAriar[idx].historialHoras.push({ fecha: fechaHoy, ubicacion: obraActual, cant: cantHoras });
+    }
+    sincronizarBaseLocal();
+    
+    // Actualizar badge de acumulado total visible en tiempo real
+    const acumuladoTotal = crewAriar[idx].historialHoras.reduce((acc, o) => acc + o.cant, 0);
+    const badge = document.getElementById(`total-badge-${idx}`);
+    if (badge) badge.innerText = `Lleva: ${acumuladoTotal} hrs en total`;
+}
+
+function inyectarUbicacionProceso(idx, ubicacionTxt) {
+    const fechaHoy = obtenerFechaFormateada();
+    let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
+    
+    if (registro) {
+        registro.ubicacion = ubicacionTxt;
+    } else {
+        const horasActuales = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0;
+        crewAriar[idx].historialHoras.push({ fecha: fechaHoy, ubicacion: ubicacionTxt, cant: horasActuales });
+    }
+    sincronizarBaseLocal();
+}
+
+// --- LÓGICA DE CAPTURA DE FOTOS (HOJAS DEL ENCARGADO) ---
+const btnActivarCamara = document.getElementById('btn-activar-camara');
+const inputCamara = document.getElementById('input-camara');
+const txtEstadoFoto = document.getElementById('txt-estado-foto');
+
+btnActivarCamara?.addEventListener('click', () => {
+    inputCamara?.click();
+});
+
+inputCamara?.addEventListener('change', (e) => {
+    const fichero = e.target.files[0];
+    if (fichero) {
+        if (txtEstadoFoto) txtEstadoFoto.innerText = "Guardando archivo...";
+        
+        const lectorArchivo = new FileReader();
+        lectorArchivo.onload = function(eventoCarga) {
+            const base64Str = eventoCarga.target.result;
+            const nuevaHojaFoto = {
+                fecha: obtenerFechaFormateada() + " - " + new Date().toLocaleTimeString('es-US', { hour: '2-digit', minute: '2-digit' }),
+                imagen: base64Str
+            };
+            historialHojasFotos.unshift(nuevaHojaFoto);
+            sincronizarFotosLocal();
+            if (txtEstadoFoto) txtEstadoFoto.innerText = "✔️ Copia archivada exitosamente";
+            renderizarGaleriaHojas();
+        };
+        lectorArchivo.readAsDataURL(fichero);
+    }
+});
+
+function renderizarGaleriaHojas() {
+    const contenedor = document.getElementById('contenedor-galeria-hojas');
+    if (!contenedor) return;
+
+    if (historialHojasFotos.length === 0) {
+        contenedor.innerHTML = `<p style="font-size:0.8rem; color:var(--texto-secundario); grid-column:1/-1;">No se han subido registros físicos en esta sesión.</p>`;
+        return;
+    }
+
+    contenedor.innerHTML = historialHojasFotos.map((hoja, index) => `
+        <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; text-align: center;">
+            <img src="${hoja.imagen}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 6px; cursor: pointer;" onclick="window.open('${hoja.imagen}')">
+            <span style="font-size: 0.68rem; color: var(--texto-secundario); display: block; margin-top: 6px; font-weight:600;">${hoja.fecha}</span>
+            <button class="btn-borrar-foto" data-img-id="${index}" style="background:none; border:none; color:var(--rojo-error); font-size:0.72rem; margin-top:5px; cursor:pointer; font-weight:700;">
+                <i class="fa-solid fa-trash"></i> Eliminar
+            </button>
+        </div>
+    `).join('');
+
+    document.querySelectorAll('.btn-borrar-foto').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const imgIdx = e.target.closest('button').getAttribute('data-img-id');
+            historialHojasFotos.splice(imgIdx, 1);
+            sincronizarFotosLocal();
+            renderizarGaleriaHojas();
+        });
+    });
+}
+
+// --- EVENTOS DEL MENÚ LATERAL ---
 links.dash?.addEventListener('click', () => cambiarVista('dash', 'Entrar a mis horas'));
 links.registro?.addEventListener('click', () => cambiarVista('registro', 'Registro de empleado'));
 links.admin?.addEventListener('click', () => {
     cambiarVista('admin', 'Administración');
     actualizarFechaEncabezadoAdmin();
-    renderizarTablaAdmin();
 });
 
 // Inicializar UI y renderizar el saludo dinámico desde el arranque
@@ -173,7 +335,7 @@ if (contenedorSaludo) {
     contenedorSaludo.innerText = obtenerSaludoSegunHora();
 }
 
-// Actualizar el encabezado con el emoji de grúa
+// Actualizar el encabezado con el emoji de grúa original
 const brandSpan = document.querySelector('.brand span');
 if (brandSpan) {
     brandSpan.innerHTML = 'STEEL LLC &#127959;'; 
@@ -258,109 +420,26 @@ const msgFeedback = document.getElementById('msg-feedback-registro');
 
 btnGuardarEmpleado?.addEventListener('click', () => {
     const nombre = document.getElementById('reg-nombre').value.trim();
-    const telefono = document.getElementById('reg-telefono').value.trim().replace(/\D/g,'');
-    const pass = document.getElementById('reg-pass').value.trim();
+    const telefono = document.getElementById('reg-telefono').value.trim();
+    const pin = document.getElementById('reg-pass').value.trim();
 
-    if(nombre === "" || telefono === "" || pass === "") {
-        if (msgFeedback) {
-            msgFeedback.style.color = "#ef4444";
-            msgFeedback.innerText = "⚠️ Completa todos los campos obligatorios.";
-        }
-        return;
-    }
+    if (!nombre || !telefono || !pin) return;
 
-    const existe = crewAriar.find(e => e.telefono === telefono);
+    const existe = crewAriar.some(e => e.telefono === telefono);
     if (existe) {
         if (msgFeedback) {
-            msgFeedback.style.color = "#ef4444";
-            msgFeedback.innerText = "⚠️ Este número de teléfono ya está registrado.";
+            msgFeedback.style.color = "var(--rojo-error)";
+            msgFeedback.innerText = "❌ Este número de teléfono ya está registrado.";
         }
         return;
     }
 
-    crewAriar.push({ 
-        nombre: nombre, 
-        telefono: telefono, 
-        pin: pass, 
-        historialHoras: [] 
-    });
-    
+    crewAriar.push({ nombre, telefono, pin, historialHoras: [] });
+    sincronizarBaseLocal();
+
     if (msgFeedback) {
-        msgFeedback.style.color = "#10b981";
-        msgFeedback.innerText = `✅ ¡${nombre} añadido! Ya puede usar su ID: ${telefono}`;
+        msgFeedback.style.color = "var(--verde-dinero)";
+        msgFeedback.innerText = `¡${nombre} registrado con éxito en el Crew!`;
     }
-    document.getElementById('form-alta-empleado')?.reset();
-    renderizarTablaAdmin();
+    document.getElementById('form-alta-empleado').reset();
 });
-
-// --- PANEL DE ADMINISTRACIÓN ---
-const btnAutenticar = document.getElementById('btn-autenticar');
-const passMaestraInput = document.getElementById('pass-maestra');
-const adminBloqueado = document.getElementById('admin-bloqueado');
-const adminDesbloqueado = document.getElementById('admin-desbloqueado');
-const msgErrorAdmin = document.getElementById('msg-error-admin');
-
-if (adminDesbloqueado) adminDesbloqueado.style.display = "none";
-
-btnAutenticar?.addEventListener('click', () => {
-    if (passMaestraInput?.value === "Ariar 2026") {
-        if (adminBloqueado) adminBloqueado.style.display = "none";
-        if (adminDesbloqueado) adminDesbloqueado.style.display = "block";
-        actualizarFechaEncabezadoAdmin();
-        renderizarTablaAdmin();
-    } else {
-        if (msgErrorAdmin) msgErrorAdmin.innerText = "❌ Clave incorrecta. Acceso Denegado.";
-        if (passMaestraInput) passMaestraInput.value = "";
-    }
-});
-
-// --- FUNCIONES GLOBALES ASIGNADAS A WINDOW ---
-window.modificarDatosBaseCrew = function(index, campo, valor) {
-    if(crewAriar[index]) {
-        crewAriar[index][campo] = valor.trim();
-    }
-};
-
-window.inyectarDatosFechaHoy = function(index) {
-    if(!crewAriar[index]) return;
-    
-    const horasInput = document.getElementById(`horas-hoy-${index}`);
-    const ubicacionSelect = document.getElementById(`ubicacion-hoy-${index}`);
-    
-    if (!horasInput || !ubicacionSelect) return;
-
-    let cantHoras = parseFloat(horasInput.value);
-    if (isNaN(cantHoras) || cantHoras < 0) cantHoras = 0;
-    
-    const ubicacionActual = ubicacionSelect.value;
-    const fechaHoyString = obtenerFechaFormateada();
-
-    const registroExistente = crewAriar[index].historialHoras.find(r => r.fecha === fechaHoyString);
-
-    if (registroExistente) {
-        if (cantHoras === 0) {
-            crewAriar[index].historialHoras = crewAriar[index].historialHoras.filter(r => r.fecha !== fechaHoyString);
-        } else {
-            registroExistente.cant = cantHoras;
-            registroExistente.ubicacion = ubicacionActual;
-        }
-    } else if (cantHoras > 0) {
-        crewAriar[index].historialHoras.push({
-            fecha: fechaHoyString,
-            ubicacion: ubicacionActual,
-            cant: cantHoras
-        });
-    }
-
-    const acumuladoTotal = crewAriar[index].historialHoras.reduce((acc, o) => acc + o.cant, 0);
-    const badge = document.getElementById(`total-badge-${index}`);
-    if(badge) badge.innerText = `${acumuladoTotal} hrs en total`;
-};
-
-window.eliminarEmpleadoCrew = function(index) {
-    const empleado = crewAriar[index];
-    if (confirm(`¿Estás seguro de eliminar a ${empleado.nombre} del sistema?`)) {
-        crewAriar.splice(index, 1);
-        renderizarTablaAdmin();
-    }
-};

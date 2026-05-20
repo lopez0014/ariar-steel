@@ -401,18 +401,34 @@
                 <div id="msg-error-admin" class="feedback-msg" style="color: var(--rojo-error);"></div>
             </div>
 
-            <div id="admin-desbloqueado" class="modulo-contenedor">
+            <div id="admin-desbloqueado" class="modulo-contenedor" style="display: none;">
                 <div style="background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245,158,11,0.2); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
                     <h3 style="margin: 0 0 10px 0; font-size: 0.9rem; color: #fff; display:flex; align-items:center; gap:6px;">
                         <i class="fa-solid fa-calendar-day" style="color:var(--naranja-acero)"></i> 
                         Inyección Rápida para el Día de Hoy: <span id="fecha-actual-admin" style="color:var(--naranja-acero);"></span>
                     </h3>
                     <p style="font-size:0.78rem; color:var(--texto-secundario); margin:0;">
-                        Usa los controles de abajo de cada empleado para capturar las horas del día de hoy o modificar sus datos generales en tiempo real.
+                        Usa los controles de abajo de cada empleado para capturar las horas del día de hoy o modificar sus datos generales en tiempo real. Los cambios se guardan al instante.
                     </p>
                 </div>
+
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 25px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 0.9rem; color: #fff;"><i class="fa-solid fa-camera" style="color: var(--naranja-acero)"></i> Subir Hoja de Turno Recibida</h3>
+                    <p style="font-size: 0.75rem; color: var(--texto-secundario); margin-bottom: 12px;">Captura o selecciona la foto de la hoja firmada por el encargado del frente de trabajo.</p>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="input-camara" accept="image/*" capture="environment" style="display: none;">
+                        <button class="btn-premium" id="btn-activar-camara" style="width: auto; padding: 10px 15px; background: linear-gradient(135px, #4f46e5 0%, #3730a3 100%); color: #fff;">
+                            <i class="fa-solid fa-camera"></i> Tomar / Adjuntar Foto
+                        </button>
+                        <span id="txt-estado-foto" style="font-size: 0.8rem; color: var(--texto-secundario);">No hay archivo temporal</span>
+                    </div>
+                </div>
+
                 <h2><i class="fa-solid fa-folder-open" style="color: var(--verde-dinero)"></i> Control de Personal y Nómina Dinámica</h2>
                 <div id="tabla-registros-admin"></div>
+
+                <h2 style="margin-top: 30px;"><i class="fa-solid fa-images" style="color: var(--naranja-acero)"></i> Archivo Visual de Hojas del Turno</h2>
+                <div id="contenedor-galeria-hojas" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-top: 15px;"></div>
             </div>
         </div>
 

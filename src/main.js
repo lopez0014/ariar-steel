@@ -203,7 +203,7 @@ function renderTablaAdmin() {
                     <input type="text" value="${emp.telefono}" class="input-mod-telefono" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#fff; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center;">
                     <input type="text" value="${emp.pin}" class="input-mod-pin" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#f59e0b; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center; font-weight:700;">
                 </div>
-                <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; display:flex; flex-direction:column; gap:8px;">
+                <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:0.75rem; color:var(--texto-secundario);">Proyecto / Obra:</span>
                         <select class="select-mod-ubicacion" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.1); color:#fff; padding:4px 8px; border-radius:4px; font-size:0.78rem;">
@@ -217,17 +217,22 @@ function renderTablaAdmin() {
                         <input type="number" class="input-mod-horas" data-id="${idx}" value="${valorHorasHoy}" min="0" step="0.5" style="width:80px; background: #000; border:1px solid rgba(255,255,255,0.1); color:#fff; text-align:center; padding:3px; border-radius:4px; font-weight:700;">
                     </div>
                 </div>
+                <button class="btn-guardar-horas-manual" data-id="${idx}" style="width:100%; padding:8px; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:#0d131f; border:none; border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar Horas de ${emp.nombre}
+                </button>
+                <div class="msg-status-guardado" data-id="${idx}" style="font-size:0.72rem; font-weight:700; text-align:center; margin-top:4px; height:14px;"></div>
             </div>
         `;
     });
     htmlTabla += `</div>`;
     tablaRegistrosAdmin.innerHTML = htmlTabla;
 
+    // Listeners para los cambios en memoria local
     document.querySelectorAll('.input-mod-horas').forEach(el => {
-        el.addEventListener('input', (e) => inyectarHorasProceso(e.target.getAttribute('data-id'), parseFloat(e.target.value) || 0));
+        el.addEventListener('input', (e) => actualizarMemoriaHorasLocal(e.target.getAttribute('data-id'), parseFloat(e.target.value) || 0));
     });
     document.querySelectorAll('.select-mod-ubicacion').forEach(el => {
-        el.addEventListener('change', (e) => inyectarUbicacionProceso(e.target.getAttribute('data-id'), e.target.value));
+        el.addEventListener('change', (e) => actualizarMemoriaUbicacionLocal(e.target.getAttribute('data-id'), e.target.value));
     });
     document.querySelectorAll('.input-mod-telefono').forEach(el => {
         el.addEventListener('input', (e) => { crewAriar[e.target.getAttribute('data-id')].telefono = e.target.value.trim(); sincronizarBaseLocal(); });
@@ -238,65 +243,74 @@ function renderTablaAdmin() {
     document.querySelectorAll('.btn-eliminar-dinamico').forEach(el => {
         el.addEventListener('click', (e) => { crewAriar.splice(e.target.closest('button').getAttribute('data-id'), 1); sincronizarBaseLocal(); renderTablaAdmin(); });
     });
+
+    // LISTENER PARA EL NUEVO BOTÓN DE GUARDADO MANUAL A SUPABASE
+    document.querySelectorAll('.btn-guardar-horas-manual').forEach(el => {
+        el.addEventListener('click', async (e) => {
+            const idx = e.target.closest('button').getAttribute('data-id');
+            await procesarGuardadoManualSupabase(idx);
+        });
+    });
 }
 
-// --- GUARDADO AUTOMÁTICO EN TIEMPO REAL A SUPABASE ---
-async function inyectarHorasProceso(idx, cantHoras) {
+// Funciones para mantener la consistencia local antes de enviar
+function actualizarMemoriaHorasLocal(idx, cantHoras) {
+    const fechaHoy = obtenerFechaFormateada();
+    let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
+    if (registro) { registro.cant = cantHoras; } 
+    else { const obra = document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value; crewAriar[idx].historialHoras.push({ fecha: fechaHoy, ubicacion: obra, cant: cantHoras }); }
+    sincronizarBaseLocal();
+}
+
+function actualizarMemoriaUbicacionLocal(idx, ubicacionTxt) {
+    const fechaHoy = obtenerFechaFormateada();
+    let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
+    if (registro) { registro.ubicacion = ubicacionTxt; } 
+    else { const hrs = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0; crewAriar[idx].historialHoras.push({ fecha: fechaHoy, ubicacion: ubicacionTxt, cant: hrs }); }
+    sincronizarBaseLocal();
+}
+
+// --- PROCESAMIENTO PRINCIPAL AL PRESIONAR EL BOTÓN DE GUARDAR ---
+async function procesarGuardadoManualSupabase(idx) {
     const fechaHoy = obtenerFechaFormateada();
     const emp = crewAriar[idx];
-    
-    let registro = emp.historialHoras.find(r => r.fecha === fechaHoy);
-    if (registro) { 
-        registro.cant = cantHoras; 
-    } else { 
-        const obra = document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value; 
-        emp.historialHoras.push({ fecha: fechaHoy, ubicacion: obra, cant: cantHoras }); 
-    }
-    sincronizarBaseLocal();
+    const horasInput = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0;
+    const obraInput = document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value;
+    const msgContenedor = document.querySelector(`.msg-status-guardado[data-id="${idx}"]`);
 
+    if (msgContenedor) {
+        msgContenedor.style.color = "#f59e0b";
+        msgContenedor.innerText = "⏳ Conectando a Supabase...";
+    }
+
+    // Enviamos un único paquete definitivo con horas y ubicación a la nube
     const { error } = await supabase
         .from('reportes_horas')
         .upsert([{ 
             telefono_empleado: emp.telefono, 
             fecha: fechaHoy, 
-            horas: cantHoras,
-            ubicacion: document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value
+            horas: horasInput,
+            ubicacion: obraInput
         }], { onConflict: 'telefono_empleado,fecha' });
 
     if (error) {
-        console.error("❌ Error al guardar horas en Supabase:", error.message);
+        console.error("❌ Error al guardar en Supabase:", error.message);
+        if (msgContenedor) {
+            msgContenedor.style.color = "#ef4444";
+            msgContenedor.innerText = "❌ Falló el guardado en internet.";
+        }
     } else {
-        console.log(`⚡ Horas de ${emp.nombre} actualizadas en la nube: ${cantHoras} hrs.`);
+        console.log(`⚡ Horas oficiales de ${emp.nombre} guardadas.`);
+        if (msgContenedor) {
+            msgContenedor.style.color = "#10b981";
+            msgContenedor.innerText = "✅ ¡Guardado con éxito en la nube!";
+            // Limpiamos el aviso después de 3 segundos
+            setTimeout(() => { msgContenedor.innerText = ""; }, 3000);
+        }
     }
 }
 
-async function inyectarUbicacionProceso(idx, ubicacionTxt) {
-    const fechaHoy = obtenerFechaFormateada();
-    const emp = crewAriar[idx];
-    
-    let registro = emp.historialHoras.find(r => r.fecha === fechaHoy);
-    if (registro) { 
-        registro.ubicacion = ubicacionTxt; 
-    } else { 
-        const hrs = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0; 
-        emp.historialHoras.push({ fecha: fechaHoy, ubicacion: ubicacionTxt, cant: hrs }); 
-    }
-    sincronizarBaseLocal();
-
-    const { error } = await supabase
-        .from('reportes_horas')
-        .upsert([{ 
-            telefono_empleado: emp.telefono, 
-            fecha: fechaHoy, 
-            horas: parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0,
-            ubicacion: ubicacionTxt
-        }], { onConflict: 'telefono_empleado,fecha' });
-
-    if (error) {
-        console.error("❌ Error al guardar ubicación en Supabase:", error.message);
-    }
-}
-
+// El resto de funciones auxiliares continúan idénticas
 links.dash?.addEventListener('click', () => { cambiarVista('dash', 'Entrar a mis horas'); armarLoginUI(); });
 links.registro?.addEventListener('click', () => cambiarVista('registro', 'Registro de empleado'));
 links.admin?.addEventListener('click', () => { cambiarVista('admin', 'Administración'); actualizarFechaEncabezadoAdmin(); });

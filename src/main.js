@@ -69,7 +69,6 @@ const tituloModulo = document.getElementById('titulo-modulo');
 const consolaHoras = document.getElementById('consola-horas');
 const btnMarcar = document.getElementById('btn-marcar');
 
-// Mantenemos la fecha legible para la pantalla de los muchachos
 function obtenerFechaFormateada() {
     const opciones = { weekday: 'long', day: '2-digit', month: '2-digit' };
     const fecha = new Date();
@@ -77,7 +76,6 @@ function obtenerFechaFormateada() {
     return resultado.charAt(0).toUpperCase() + resultado.slice(1);
 }
 
-// NUEVA FUNCIÓN: Obtiene la fecha exacta en formato calendario YYYY-MM-DD exigido por registro_horas
 function obtenerFechaCalendarioSQL() {
     const d = new Date();
     const mes = String(d.getMonth() + 1).padStart(2, '0');
@@ -171,9 +169,6 @@ function inyectarBotonWhatsAppAdminArriba() {
         `;
         panelDesbloqueado.prepend(divContenedorBoton);
     }
-
-    const contenedorViejo = document.getElementById('contenedor-galeria-hojas');
-    if (contenedorViejo) { contenedorViejo.innerHTML = ''; }
 }
 
 document.addEventListener('click', function(e) {
@@ -186,11 +181,11 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// --- RENDERIZADO DEL PANEL CON LA CALCULADORA AUTOMÁTICA ---
 function renderTablaAdmin() {
     const tablaRegistrosAdmin = document.getElementById('tabla-registros-admin');
     if (!tablaRegistrosAdmin) return;
 
-    const fechaHoyString = obtenerFechaFormateada();
     if (crewAriar.length === 0) {
         tablaRegistrosAdmin.innerHTML = `<div style="text-align:center; padding: 30px; color: var(--texto-secundario); font-size: 0.85rem;">No hay empleados en el crew todavía.</div>`;
         return;
@@ -198,35 +193,48 @@ function renderTablaAdmin() {
 
     let htmlTabla = `<div style="display:flex; flex-direction:column; gap:12px;">`;
     crewAriar.forEach((emp, idx) => {
-        const registroHoy = emp.historialHoras.find(r => r.fecha === fechaHoyString);
-        const valorHorasHoy = registroHoy ? registroHoy.cant : 0;
-        const ubicacionHoy = registroHoy ? registroHoy.ubicacion : "Austin, Texas";
-
         htmlTabla += `
             <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03); padding: 12px; border-radius:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <span><i class="fa-solid fa-user-helmet-safety" style="color: var(--naranja-acero);"></i> <strong>${emp.nombre}</strong></span>
                     <button class="btn-eliminar-dinamico" data-id="${idx}" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight:700; cursor:pointer;">Eliminar</button>
                 </div>
+                
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:12px;">
-                    <input type="text" value="${emp.telefono}" class="input-mod-telefono" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#fff; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center;">
-                    <input type="text" value="${emp.pin}" class="input-mod-pin" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#f59e0b; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center; font-weight:700;">
+                    <input type="text" value="${emp.telefono}" class="input-mod-telefono" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#fff; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center;" readonly>
+                    <input type="text" value="${emp.pin}" class="input-mod-pin" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.06); color:#f59e0b; padding:5px; border-radius:4px; font-size:0.78rem; text-align:center; font-weight:700;" readonly>
                 </div>
-                <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
+
+                <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+                    
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                        <div>
+                            <label style="font-size:0.68rem; color:#64748b; font-weight:700; display:block; margin-bottom:2px;">🕒 Entrada:</label>
+                            <input type="time" value="07:00" class="calc-entrada" data-id="${idx}" style="width:100%; background:#000; border:1px solid rgba(255,255,255,0.1); color:#fff; padding:4px; border-radius:4px; font-size:0.8rem; box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.68rem; color:#64748b; font-weight:700; display:block; margin-bottom:2px;">🕒 Salida:</label>
+                            <input type="time" value="17:00" class="calc-salida" data-id="${idx}" style="width:100%; background:#000; border:1px solid rgba(255,255,255,0.1); color:#fff; padding:4px; border-radius:4px; font-size:0.8rem; box-sizing:border-box;">
+                        </div>
+                    </div>
+
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:0.75rem; color:var(--texto-secundario);">Proyecto / Obra:</span>
-                        <select class="select-mod-ubicacion" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.1); color:#fff; padding:4px 8px; border-radius:4px; font-size:0.78rem;">
-                            <option value="Austin, Texas" ${ubicacionHoy === "Austin, Texas" ? "selected" : ""}>Austin, TX</option>
-                            <option value="San Antonio, Texas" ${ubicacionHoy === "San Antonio, Texas" ? "selected" : ""}>San Antonio, TX</option>
-                            <option value="Wichita, Texas" ${ubicacionHoy === "Wichita, Texas" ? "selected" : ""}>Wichita, TX</option>
+                        <span style="font-size:0.75rem; color:var(--texto-secundario); font-weight:600;">🍱 Almuerzo (Break):</span>
+                        <select class="calc-lunch" data-id="${idx}" style="background:#000; border:1px solid rgba(255,255,255,0.1); color:#fff; padding:4px; border-radius:4px; font-size:0.78rem;">
+                            <option value="0">Sin almuerzo (Corrido)</option>
+                            <option value="30" selected>30 Minutos</option>
+                            <option value="45">45 Minutos</option>
+                            <option value="60">1 Hora completa</option>
                         </select>
                     </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:0.75rem; color:var(--texto-secundario);">Horas de Hoy:</span>
-                        <input type="number" class="input-mod-horas" data-id="${idx}" value="${valorHorasHoy}" min="0" step="0.5" style="width:80px; background: #000; border:1px solid rgba(255,255,255,0.1); color:#fff; text-align:center; padding:3px; border-radius:4px; font-weight:700;">
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.05); padding-top:6px; margin-top:2px;">
+                        <span style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🧮 Horas Calculadas:</span>
+                        <span class="resultado-calculo-display" data-id="${idx}" style="font-size:0.9rem; color:#f59e0b; font-weight:800;">9.5 hrs</span>
                     </div>
                 </div>
-                <button class="btn-guardar-horas-manual" data-id="${idx}" style="width:100%; padding:8px; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:#0d131f; border:none; border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+
+                <button class="btn-guardar-horas-manual" data-id="${idx}" style="width:100%; padding:9px; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:#0d131f; border:none; border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
                     <i class="fa-solid fa-floppy-disk"></i> Guardar Horas de ${emp.nombre}
                 </button>
                 <div class="msg-status-guardado" data-id="${idx}" style="font-size:0.72rem; font-weight:700; text-align:center; margin-top:4px; height:14px;"></div>
@@ -236,77 +244,96 @@ function renderTablaAdmin() {
     htmlTabla += `</div>`;
     tablaRegistrosAdmin.innerHTML = htmlTabla;
 
-    document.querySelectorAll('.input-mod-horas').forEach(el => {
-        el.addEventListener('input', (e) => actualizarMemoriaHorasLocal(e.target.getAttribute('data-id'), parseFloat(e.target.value) || 0));
-    });
-    document.querySelectorAll('.select-mod-ubicacion').forEach(el => {
-        el.addEventListener('change', (e) => actualizarMemoriaUbicacionLocal(e.target.getAttribute('data-id'), e.target.value));
-    });
-    document.querySelectorAll('.input-mod-telefono').forEach(el => {
-        el.addEventListener('input', (e) => { crewAriar[e.target.getAttribute('data-id')].telefono = e.target.value.trim(); sincronizarBaseLocal(); });
-    });
-    document.querySelectorAll('.input-mod-pin').forEach(el => {
-        el.addEventListener('input', (e) => { crewAriar[e.target.getAttribute('data-id')].pin = e.target.value.trim(); sincronizarBaseLocal(); });
-    });
-    document.querySelectorAll('.btn-eliminar-dinamico').forEach(el => {
-        el.addEventListener('click', (e) => { crewAriar.splice(e.target.closest('button').getAttribute('data-id'), 1); sincronizarBaseLocal(); renderTablaAdmin(); });
+    // Amarrar los eventos de la calculadora para que haga el cálculo en cuanto muevan una hora o el lunch
+    document.querySelectorAll('.calc-entrada, .calc-salida, .calc-lunch').forEach(el => {
+        el.addEventListener('input', (e) => {
+            const idx = e.target.getAttribute('data-id');
+            recalcularHorasTarjeta(idx);
+        });
     });
 
+    // Ejecutar el cálculo inicial para que pinte las horas correctas al abrir el panel
+    crewAriar.forEach((_, idx) => recalcularHorasTarjeta(idx));
+
+    // Evento del botón de guardado
     document.querySelectorAll('.btn-guardar-horas-manual').forEach(el => {
         el.addEventListener('click', async (e) => {
             const idx = e.target.closest('button').getAttribute('data-id');
             await procesarGuardadoManualSupabase(idx);
         });
     });
+
+    document.querySelectorAll('.btn-eliminar-dinamico').forEach(el => {
+        el.addEventListener('click', (e) => { crewAriar.splice(e.target.closest('button').getAttribute('data-id'), 1); sincronizarBaseLocal(); renderTablaAdmin(); });
+    });
 }
 
-function actualizarMemoriaHorasLocal(idx, cantHoras) {
-    const fechaHoy = obtenerFechaFormateada();
-    let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
-    if (registro) { registro.cant = cantHoras; } 
-    else { const obra = document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value; crewAriar[idx].historialHoras.push({ fecha: fechaHoy, ubicacion: obra, cant: cantHoras }); }
-    sincronizarBaseLocal();
+// --- FUNCIÓN MATEMÁTICA INTERNA DE LA CALCULADORA ---
+function recalcularHorasTarjeta(idx) {
+    const entradaVal = document.querySelector(`.calc-entrada[data-id="${idx}"]`).value;
+    const salidaVal = document.querySelector(`.calc-salida[data-id="${idx}"]`).value;
+    const lunchMinutos = parseInt(document.querySelector(`.calc-lunch[data-id="${idx}"]`).value) || 0;
+    const displayRes = document.querySelector(`.resultado-calculo-display[data-id="${idx}"]`);
+
+    if (!entradaVal || !salidaVal || !displayRes) return;
+
+    // Convertimos Entrada a minutos totales
+    const [hEntrada, mEntrada] = entradaVal.split(':').map(Number);
+    const minutosEntrada = (hEntrada * 60) + mEntrada;
+
+    // Convertimos Salida a minutos totales
+    const [hSalida, mSalida] = salidaVal.split(':').map(Number);
+    const minutosSalida = (hSalida * 60) + mSalida;
+
+    // Si la salida es menor a la entrada, asumimos que cruzó la medianoche
+    let diferenciaMinutos = minutosSalida - minutosEntrada;
+    if (diferenciaMinutos < 0) {
+        diferenciaMinutos += 24 * 60; 
+    }
+
+    // Restamos el tiempo de almuerzo tomado
+    let minutosNetos = diferenciaMinutos - lunchMinutos;
+    if (minutosNetos < 0) minutosNetos = 0;
+
+    // Convertimos de regreso a formato decimal (ej: 570 minutos = 9.5 horas)
+    const horasDecimales = (minutosNetos / 60).toFixed(2);
+    
+    // Lo mostramos formateado limpiamente en la pantalla del teléfono
+    displayRes.innerText = `${parseFloat(horasDecimales)} hrs`;
 }
 
-function actualizarMemoriaUbicacionLocal(idx, ubicacionTxt) {
-    const fechaHoy = obtenerFechaFormateada();
-    let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
-    if (registro) { registro.ubicacion = ubicacionTxt; } 
-    else { const hrs = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0; crewAriar[idx].historialHoras.push({ fecha: fechaHoy, ubicacion: ubicacionTxt, cant: hrs }); }
-    sincronizarBaseLocal();
-}
-
-// --- ENVÍO DE DATOS ADAPTADO A LA TABLA PROFESIONAL "REGISTRO_HORAS" ---
+// --- ENVÍO DEL RESULTADO AUTOMÁTICO A LA TABLA REGISTRO_HORAS ---
 async function procesarGuardadoManualSupabase(idx) {
-    const fechaSQL = obtenerFechaCalendarioSQL(); // Formato YYYY-MM-DD exigido por la base de datos
+    const fechaSQL = obtenerFechaCalendarioSQL();
     const emp = crewAriar[idx];
-    const horasInput = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0;
     const msgContenedor = document.querySelector(`.msg-status-guardado[data-id="${idx}"]`);
+    
+    // Obtenemos el resultado numérico que calculó la tarjeta
+    const displayRes = document.querySelector(`.resultado-calculo-display[data-id="${idx}"]`);
+    const horasCalculadas = parseFloat(displayRes?.innerText) || 0;
 
     if (msgContenedor) {
         msgContenedor.style.color = "#f59e0b";
         msgContenedor.innerText = "⏳ Guardando en registro_horas...";
     }
 
-    // Inserción directa en la tabla 'registro_horas' amarrada al teléfono del empleado
     const { error } = await supabase
         .from('registro_horas')
         .insert([{ 
             telefono_empleado: emp.telefono, 
             fecha: fechaSQL, 
-            horas_regulares: horasInput,
-            horas_overtime: 0.00, // Lo dejamos listo para configurar OT después
-            notas: "Registro desde Panel Administrador"
+            horas_regulares: horasCalculadas,
+            horas_overtime: 0.00,
+            notas: `Entrada/Salida calculada automáticamente en el panel`
         }]);
 
     if (error) {
-        console.error("❌ Error devuelto por Supabase:", error.message);
+        console.error("❌ Error en Supabase:", error.message);
         if (msgContenedor) {
             msgContenedor.style.color = "#ef4444";
             msgContenedor.innerText = "❌ Falló el guardado en internet.";
         }
     } else {
-        console.log(`⚡ Horas en la tabla registro_horas para ${emp.nombre} listas.`);
         if (msgContenedor) {
             msgContenedor.style.color = "#10b981";
             msgContenedor.innerText = "✅ ¡Guardado con éxito en la nube!";
@@ -315,6 +342,7 @@ async function procesarGuardadoManualSupabase(idx) {
     }
 }
 
+// Los eventos de navegación y el login se mantienen sin cambios
 links.dash?.addEventListener('click', () => { cambiarVista('dash', 'Entrar a mis horas'); armarLoginUI(); });
 links.registro?.addEventListener('click', () => cambiarVista('registro', 'Registro de empleado'));
 links.admin?.addEventListener('click', () => { cambiarVista('admin', 'Administración'); actualizarFechaEncabezadoAdmin(); });

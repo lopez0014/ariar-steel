@@ -14,9 +14,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const CLAVE_MAESTRA_SISTEMA = "ariar2026";
 
-// --- CONFIGURACIÓN DE CONTACTO DE LA EMPRESA ---
-const TELEFONO_ADMIN_WHATSAPP = "15127508621"; 
-
 // --- BASE DE DATOS LOCAL VACÍA (SEGURIDAD COMPLETA EN GITHUB) ---
 const crewInicial = []; 
 
@@ -136,48 +133,9 @@ document.getElementById('btn-autenticar')?.addEventListener('click', () => {
         document.getElementById('admin-bloqueado').style.display = 'none';
         document.getElementById('admin-desbloqueado').style.display = 'block';
         actualizarFechaEncabezadoAdmin();
-        inyectarBotonWhatsAppAdminArriba(); 
-        renderTablaAdmin();
+        renderTablaAdmin(); // Renderiza directo la tabla sin el cuadro de la foto
     } else {
         if (errorAdmin) errorAdmin.innerText = "❌ Clave Maestra de Seguridad Incorrecta.";
-    }
-});
-
-function inyectarBotonWhatsAppAdminArriba() {
-    const panelDesbloqueado = document.getElementById('admin-desbloqueado');
-    const idBotonExiste = document.getElementById('bloque-whatsapp-top');
-    
-    if (idBotonExiste) { idBotonExiste.remove(); }
-
-    if (panelDesbloqueado) {
-        const divContenedorBoton = document.createElement('div');
-        divContenedorBoton.id = "bloque-whatsapp-top";
-        divContenedorBoton.style.background = "rgba(255, 255, 255, 0.02)";
-        divContenedorBoton.style.border = "1px solid rgba(255, 255, 255, 0.05)";
-        divContenedorBoton.style.padding = "16px";
-        divContenedorBoton.style.borderRadius = "12px";
-        divContenedorBoton.style.marginBottom = "20px";
-        divContenedorBoton.style.textAlign = "center";
-        
-        divContenedorBoton.innerHTML = `
-            <p style="font-size: 0.85rem; color: #94a3b8; font-weight: 600; margin: 0 0 12px 0; line-height: 1.4;">
-                📸 Captura o selecciona la foto de la hoja firmada por el encargado del frente del trabajo:
-            </p>
-            <button id="btn-subir-horas-whatsapp" style="width:100%; max-width:380px; margin: 0 auto; padding:14px; background:linear-gradient(135deg, #25D366 0%, #128C7E 100%); border:none; border-radius:8px; color:#fff; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow: 0 4px 14px rgba(37,211,102,0.25);">
-                <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> Subir horas
-            </button>
-        `;
-        panelDesbloqueado.prepend(divContenedorBoton);
-    }
-}
-
-document.addEventListener('click', function(e) {
-    const btnSubirHoras = e.target.closest('#btn-subir-horas-whatsapp');
-    if (btnSubirHoras) {
-        const fechaYHora = new Date().toLocaleString('es-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        const textoMensaje = `Ariar Steel LLC - Envío de Hoja de Asistencia\nFecha de reporte: ${fechaYHora}\n\n[Adjunta aquí la foto de la hoja de turno firmada]`;
-        const urlWhatsApp = `https://wa.me/${TELEFONO_ADMIN_WHATSAPP}?text=${encodeURIComponent(textoMensaje)}`;
-        window.open(urlWhatsApp, '_blank');
     }
 });
 
@@ -244,18 +202,12 @@ function renderTablaAdmin() {
     htmlTabla += `</div>`;
     tablaRegistrosAdmin.innerHTML = htmlTabla;
 
-    // Amarrar los eventos de la calculadora para que haga el cálculo en cuanto muevan una hora o el lunch
     document.querySelectorAll('.calc-entrada, .calc-salida, .calc-lunch').forEach(el => {
-        el.addEventListener('input', (e) => {
-            const idx = e.target.getAttribute('data-id');
-            recalcularHorasTarjeta(idx);
-        });
+        el.addEventListener('input', (e) => recalcularHorasTarjeta(e.target.getAttribute('data-id')));
     });
 
-    // Ejecutar el cálculo inicial para que pinte las horas correctas al abrir el panel
     crewAriar.forEach((_, idx) => recalcularHorasTarjeta(idx));
 
-    // Evento del botón de guardado
     document.querySelectorAll('.btn-guardar-horas-manual').forEach(el => {
         el.addEventListener('click', async (e) => {
             const idx = e.target.closest('button').getAttribute('data-id');
@@ -268,7 +220,6 @@ function renderTablaAdmin() {
     });
 }
 
-// --- FUNCIÓN MATEMÁTICA INTERNA DE LA CALCULADORA ---
 function recalcularHorasTarjeta(idx) {
     const entradaVal = document.querySelector(`.calc-entrada[data-id="${idx}"]`).value;
     const salidaVal = document.querySelector(`.calc-salida[data-id="${idx}"]`).value;
@@ -277,38 +228,27 @@ function recalcularHorasTarjeta(idx) {
 
     if (!entradaVal || !salidaVal || !displayRes) return;
 
-    // Convertimos Entrada a minutos totales
     const [hEntrada, mEntrada] = entradaVal.split(':').map(Number);
     const minutosEntrada = (hEntrada * 60) + mEntrada;
 
-    // Convertimos Salida a minutos totales
     const [hSalida, mSalida] = salidaVal.split(':').map(Number);
-    const minutosSalida = (hSalida * 60) + mSalida;
+    const minutesSalida = (hSalida * 60) + mSalida;
 
-    // Si la salida es menor a la entrada, asumimos que cruzó la medianoche
-    let diferenciaMinutos = minutosSalida - minutosEntrada;
-    if (diferenciaMinutos < 0) {
-        diferenciaMinutos += 24 * 60; 
-    }
+    let diferenciaMinutos = minutesSalida - minutosEntrada;
+    if (diferenciaMinutos < 0) diferenciaMinutos += 24 * 60; 
 
-    // Restamos el tiempo de almuerzo tomado
     let minutosNetos = diferenciaMinutos - lunchMinutos;
     if (minutosNetos < 0) minutosNetos = 0;
 
-    // Convertimos de regreso a formato decimal (ej: 570 minutos = 9.5 horas)
     const horasDecimales = (minutosNetos / 60).toFixed(2);
-    
-    // Lo mostramos formateado limpiamente en la pantalla del teléfono
     displayRes.innerText = `${parseFloat(horasDecimales)} hrs`;
 }
 
-// --- ENVÍO DEL RESULTADO AUTOMÁTICO A LA TABLA REGISTRO_HORAS ---
 async function procesarGuardadoManualSupabase(idx) {
     const fechaSQL = obtenerFechaCalendarioSQL();
     const emp = crewAriar[idx];
     const msgContenedor = document.querySelector(`.msg-status-guardado[data-id="${idx}"]`);
     
-    // Obtenemos el resultado numérico que calculó la tarjeta
     const displayRes = document.querySelector(`.resultado-calculo-display[data-id="${idx}"]`);
     const horasCalculadas = parseFloat(displayRes?.innerText) || 0;
 
@@ -342,7 +282,6 @@ async function procesarGuardadoManualSupabase(idx) {
     }
 }
 
-// Los eventos de navegación y el login se mantienen sin cambios
 links.dash?.addEventListener('click', () => { cambiarVista('dash', 'Entrar a mis horas'); armarLoginUI(); });
 links.registro?.addEventListener('click', () => cambiarVista('registro', 'Registro de empleado'));
 links.admin?.addEventListener('click', () => { cambiarVista('admin', 'Administración'); actualizarFechaEncabezadoAdmin(); });

@@ -69,11 +69,20 @@ const tituloModulo = document.getElementById('titulo-modulo');
 const consolaHoras = document.getElementById('consola-horas');
 const btnMarcar = document.getElementById('btn-marcar');
 
+// Mantenemos la fecha legible para la pantalla de los muchachos
 function obtenerFechaFormateada() {
     const opciones = { weekday: 'long', day: '2-digit', month: '2-digit' };
     const fecha = new Date();
     let resultado = fecha.toLocaleDateString('es-ES', opciones);
     return resultado.charAt(0).toUpperCase() + resultado.slice(1);
+}
+
+// NUEVA FUNCIÓN: Obtiene la fecha exacta en formato calendario YYYY-MM-DD exigido por registro_horas
+function obtenerFechaCalendarioSQL() {
+    const d = new Date();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
 function actualizarFechaEncabezadoAdmin() {
@@ -227,7 +236,6 @@ function renderTablaAdmin() {
     htmlTabla += `</div>`;
     tablaRegistrosAdmin.innerHTML = htmlTabla;
 
-    // Listeners para los cambios en memoria local
     document.querySelectorAll('.input-mod-horas').forEach(el => {
         el.addEventListener('input', (e) => actualizarMemoriaHorasLocal(e.target.getAttribute('data-id'), parseFloat(e.target.value) || 0));
     });
@@ -244,7 +252,6 @@ function renderTablaAdmin() {
         el.addEventListener('click', (e) => { crewAriar.splice(e.target.closest('button').getAttribute('data-id'), 1); sincronizarBaseLocal(); renderTablaAdmin(); });
     });
 
-    // LISTENER PARA EL NUEVO BOTÓN DE GUARDADO MANUAL A SUPABASE
     document.querySelectorAll('.btn-guardar-horas-manual').forEach(el => {
         el.addEventListener('click', async (e) => {
             const idx = e.target.closest('button').getAttribute('data-id');
@@ -253,7 +260,6 @@ function renderTablaAdmin() {
     });
 }
 
-// Funciones para mantener la consistencia local antes de enviar
 function actualizarMemoriaHorasLocal(idx, cantHoras) {
     const fechaHoy = obtenerFechaFormateada();
     let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
@@ -270,47 +276,45 @@ function actualizarMemoriaUbicacionLocal(idx, ubicacionTxt) {
     sincronizarBaseLocal();
 }
 
-// --- PROCESAMIENTO PRINCIPAL AL PRESIONAR EL BOTÓN DE GUARDAR ---
+// --- ENVÍO DE DATOS ADAPTADO A LA TABLA PROFESIONAL "REGISTRO_HORAS" ---
 async function procesarGuardadoManualSupabase(idx) {
-    const fechaHoy = obtenerFechaFormateada();
+    const fechaSQL = obtenerFechaCalendarioSQL(); // Formato YYYY-MM-DD exigido por la base de datos
     const emp = crewAriar[idx];
     const horasInput = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0;
-    const obraInput = document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value;
     const msgContenedor = document.querySelector(`.msg-status-guardado[data-id="${idx}"]`);
 
     if (msgContenedor) {
         msgContenedor.style.color = "#f59e0b";
-        msgContenedor.innerText = "⏳ Conectando a Supabase...";
+        msgContenedor.innerText = "⏳ Guardando en registro_horas...";
     }
 
-    // Enviamos un único paquete definitivo con horas y ubicación a la nube
+    // Inserción directa en la tabla 'registro_horas' amarrada al teléfono del empleado
     const { error } = await supabase
-        .from('reportes_horas')
-        .upsert([{ 
+        .from('registro_horas')
+        .insert([{ 
             telefono_empleado: emp.telefono, 
-            fecha: fechaHoy, 
-            horas: horasInput,
-            ubicacion: obraInput
-        }], { onConflict: 'telefono_empleado,fecha' });
+            fecha: fechaSQL, 
+            horas_regulares: horasInput,
+            horas_overtime: 0.00, // Lo dejamos listo para configurar OT después
+            notas: "Registro desde Panel Administrador"
+        }]);
 
     if (error) {
-        console.error("❌ Error al guardar en Supabase:", error.message);
+        console.error("❌ Error devuelto por Supabase:", error.message);
         if (msgContenedor) {
             msgContenedor.style.color = "#ef4444";
             msgContenedor.innerText = "❌ Falló el guardado en internet.";
         }
     } else {
-        console.log(`⚡ Horas oficiales de ${emp.nombre} guardadas.`);
+        console.log(`⚡ Horas en la tabla registro_horas para ${emp.nombre} listas.`);
         if (msgContenedor) {
             msgContenedor.style.color = "#10b981";
             msgContenedor.innerText = "✅ ¡Guardado con éxito en la nube!";
-            // Limpiamos el aviso después de 3 segundos
             setTimeout(() => { msgContenedor.innerText = ""; }, 3000);
         }
     }
 }
 
-// El resto de funciones auxiliares continúan idénticas
 links.dash?.addEventListener('click', () => { cambiarVista('dash', 'Entrar a mis horas'); armarLoginUI(); });
 links.registro?.addEventListener('click', () => cambiarVista('registro', 'Registro de empleado'));
 links.admin?.addEventListener('click', () => { cambiarVista('admin', 'Administración'); actualizarFechaEncabezadoAdmin(); });
@@ -367,10 +371,6 @@ btnMarcar?.addEventListener('click', () => {
         if (errorMsg) errorMsg.innerText = "❌ Usuario o PIN incorrectos.";
     }
 });
-
-// --- REGISTRO DE NUEVO TRABAJADOR EN LA NUBE ---
-const btnGuardarEmpleado = document.getElementById('btn-guardar-empleado');
-const msgFeedback = document.getElementById('msg-feedback-registro');
 
 btnGuardarEmpleado?.addEventListener('click', async () => {
     const nombre = document.getElementById('reg-nombre').value.trim();

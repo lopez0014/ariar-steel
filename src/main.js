@@ -2,25 +2,52 @@
 // CONTROL TOTAL DE POSICIONAMIENTO SUPERIOR - ARIAR STEEL LLC
 // =========================================================================
 import { historialCrew } from './horas.js';
+import { createClient } from '@supabase/supabase-js';
+
+// --- CONFIGURACIÓN DE CLIENTE SUPABASE DIRECTA ---
+const supabaseUrl = "https://waxwqdefxhmcodfflnxv.supabase.co"; 
+
+// Tu clave oficial integrada directamente
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndheHdxZGVmeGhtY29kZmZsbnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDY0NTIsImV4cCI6MjA5NjAyMjQ1Mn0.2YL7-1TR6mVd0kULSIfOpBVXnZszwZPjy-KQlU5z3Aw";
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const CLAVE_MAESTRA_SISTEMA = "ariar2026";
 
 // --- CONFIGURACIÓN DE CONTACTO DE LA EMPRESA ---
-const TELEFONO_ADMIN_WHATSAPP = "15127508621"; // Actualizado a tu número de recepción
+const TELEFONO_ADMIN_WHATSAPP = "15127508621"; 
 
-// --- BASE DE DATOS LOCAL CON TU CREW OFICIAL ---
-const crewInicial = [
-    { nombre: "Melvin", telefono: "7377109064", pin: "9064", historialHoras: historialCrew["7377109064"] || [] },
-    { nombre: "Edwin López", telefono: "7373883909", pin: "3909", historialHoras: historialCrew["7373883909"] || [] },
-    { nombre: "Luis Alfaro", telefono: "7373988349", pin: "8349", historialHoras: historialCrew["7373988349"] || [] },
-    { nombre: "Angel Hernández", telefono: "7262442545", pin: "2545", historialHoras: historialCrew["7262442545"] || [] },
-    { nombre: "Mauricio Zavala", telefono: "7373932727", pin: "2727", historialHoras: historialCrew["7373932727"] || [] },
-    { nombre: "Denis Mendoza", telefono: "5123590463", pin: "0463", historialHoras: historialCrew["5123590463"] || [] },
-    { nombre: "Josué Muñoz", telefono: "7373786448", pin: "6448", historialHoras: historialCrew["7373786448"] || [] },
-    { nombre: "Hugo Hernández Rivera", telefono: "5127729112", pin: "9112", historialHoras: historialCrew["5127729112"] || [] }
-];
+// --- BASE DE DATOS LOCAL VACÍA (SEGURIDAD COMPLETA EN GITHUB) ---
+const crewInicial = [];
 
-let crewAriar = JSON.parse(localStorage.getItem('crewAriarData')) || crewInicial;
+let crewAriar = [];
+
+// Función para descargar el crew desde Supabase en tiempo real
+async function cargarCrewDesdeSupabase() {
+    const { data, error } = await supabase
+        .from('usuarios')
+        .select('nombre, telefono, pin, rol');
+
+    if (error) {
+        console.error("❌ Error al traer los empleados de Supabase:", error.message);
+        crewAriar = crewInicial; // Respaldo local si falla la red
+    } else {
+        crewAriar = data.map(emp => ({
+            nombre: emp.nombre,
+            telefono: emp.telefono,
+            pin: emp.pin,
+            rol: emp.rol,
+            historialHoras: [] 
+        }));
+    }
+    
+    if (document.getElementById('admin-desbloqueado')?.style.display === 'block') {
+        renderTablaAdmin();
+    }
+}
+
+// Inicializamos la carga al arrancar la app
+cargarCrewDesdeSupabase();
 
 function sincronizarBaseLocal() {
     localStorage.setItem('crewAriarData', JSON.stringify(crewAriar));
@@ -102,8 +129,6 @@ document.getElementById('btn-autenticar')?.addEventListener('click', () => {
         document.getElementById('admin-bloqueado').style.display = 'none';
         document.getElementById('admin-desbloqueado').style.display = 'block';
         actualizarFechaEncabezadoAdmin();
-        
-        // Ejecutamos primero la inyección forzada arriba para ganarle al renderizado de la tabla
         inyectarBotonWhatsAppAdminArriba(); 
         renderTablaAdmin();
     } else {
@@ -111,20 +136,15 @@ document.getElementById('btn-autenticar')?.addEventListener('click', () => {
     }
 });
 
-// --- FORZAR EL BOTÓN AL PRINCIPIO ABSOLUTO DE LA SECCIÓN ---
 function inyectarBotonWhatsAppAdminArriba() {
     const panelDesbloqueado = document.getElementById('admin-desbloqueado');
     const idBotonExiste = document.getElementById('bloque-whatsapp-top');
     
-    // Si ya existe en la pantalla, lo removemos para evitar duplicados abajo
-    if (idBotonExiste) {
-        idBotonExiste.remove();
-    }
+    if (idBotonExiste) { idBotonExiste.remove(); }
 
     if (panelDesbloqueado) {
         const divContenedorBoton = document.createElement('div');
         divContenedorBoton.id = "bloque-whatsapp-top";
-        // Estilos limpios y visibles
         divContenedorBoton.style.background = "rgba(255, 255, 255, 0.02)";
         divContenedorBoton.style.border = "1px solid rgba(255, 255, 255, 0.05)";
         divContenedorBoton.style.padding = "16px";
@@ -140,19 +160,13 @@ function inyectarBotonWhatsAppAdminArriba() {
                 <i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> Subir horas
             </button>
         `;
-        
-        // Usamos prepend para meterlo al inicio antes de que se pinte la tabla o cualquier otra etiqueta vieja
         panelDesbloqueado.prepend(divContenedorBoton);
     }
 
-    // Limpiamos el contenedor viejo por si seguía vivo en el HTML original de la web
     const contenedorViejo = document.getElementById('contenedor-galeria-hojas');
-    if (contenedorViejo) {
-        contenedorViejo.innerHTML = '';
-    }
+    if (contenedorViejo) { contenedorViejo.innerHTML = ''; }
 }
 
-// Escuchador global para abrir WhatsApp
 document.addEventListener('click', function(e) {
     const btnSubirHoras = e.target.closest('#btn-subir-horas-whatsapp');
     if (btnSubirHoras) {
@@ -299,26 +313,41 @@ btnMarcar?.addEventListener('click', () => {
     }
 });
 
-// --- REGISTRO DE NUEVO TRABAJADOR ---
+// --- REGISTRO DE NUEVO TRABAJADOR EN LA NUBE ---
 const btnGuardarEmpleado = document.getElementById('btn-guardar-empleado');
 const msgFeedback = document.getElementById('msg-feedback-registro');
 
-btnGuardarEmpleado?.addEventListener('click', () => {
+btnGuardarEmpleado?.addEventListener('click', async () => {
     const nombre = document.getElementById('reg-nombre').value.trim();
     const telefono = document.getElementById('reg-telefono').value.trim();
     const pin = document.getElementById('reg-pass').value.trim();
 
     if (!nombre || !telefono || !pin) return;
 
-    const existe = crewAriar.some(e => e.telefono === telefono);
-    if (existe) {
-        if (msgFeedback) { msgFeedback.style.color = "var(--rojo-error)"; msgFeedback.innerText = "❌ Este número de teléfono ya está registrado."; }
+    if (msgFeedback) {
+        msgFeedback.style.color = "#f59e0b";
+        msgFeedback.innerText = "⏳ Guardando en la base de datos...";
+    }
+
+    const { data, error } = await supabase
+        .from('usuarios')
+        .insert([{ nombre: nombre, telefono: telefono, pin: pin, rol: 'empleado' }]);
+
+    if (error) {
+        if (msgFeedback) { 
+            msgFeedback.style.color = "var(--rojo-error)"; 
+            msgFeedback.innerText = error.code === '23505' 
+                ? "❌ Este número de teléfono ya está registrado." 
+                : "❌ Error al guardar: " + error.message; 
+        }
         return;
     }
 
-    crewAriar.push({ nombre, telefono, pin, historialHoras: [] });
-    sincronizarBaseLocal();
+    await cargarCrewDesdeSupabase();
 
-    if (msgFeedback) { msgFeedback.style.color = "var(--verde-dinero)"; msgFeedback.innerText = `¡${nombre} registrado con éxito!`; }
+    if (msgFeedback) { 
+        msgFeedback.style.color = "var(--verde-dinero)"; 
+        msgFeedback.innerText = `¡${nombre} registrado con éxito en la nube!`; 
+    }
     document.getElementById('form-alta-empleado').reset();
 });

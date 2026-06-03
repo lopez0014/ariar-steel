@@ -18,7 +18,7 @@ const CLAVE_MAESTRA_SISTEMA = "ariar2026";
 const TELEFONO_ADMIN_WHATSAPP = "15127508621"; 
 
 // --- BASE DE DATOS LOCAL VACÍA (SEGURIDAD COMPLETA EN GITHUB) ---
-const crewInicial = [];
+const crewInicial = []; 
 
 let crewAriar = [];
 
@@ -240,20 +240,61 @@ function renderTablaAdmin() {
     });
 }
 
-function inyectarHorasProceso(idx, cantHoras) {
+// --- GUARDADO AUTOMÁTICO EN TIEMPO REAL A SUPABASE ---
+async function inyectarHorasProceso(idx, cantHoras) {
     const fechaHoy = obtenerFechaFormateada();
-    let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
-    if (registro) { registro.cant = cantHoras; } 
-    else { const obra = document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value; crewAriar[idx].historialHoras.push({ fecha: fechaHoy, ubicacion: obra, cant: cantHoras }); }
+    const emp = crewAriar[idx];
+    
+    let registro = emp.historialHoras.find(r => r.fecha === fechaHoy);
+    if (registro) { 
+        registro.cant = cantHoras; 
+    } else { 
+        const obra = document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value; 
+        emp.historialHoras.push({ fecha: fechaHoy, ubicacion: obra, cant: cantHoras }); 
+    }
     sincronizarBaseLocal();
+
+    const { error } = await supabase
+        .from('reportes_horas')
+        .upsert([{ 
+            telefono_empleado: emp.telefono, 
+            fecha: fechaHoy, 
+            horas: cantHoras,
+            ubicacion: document.querySelector(`.select-mod-ubicacion[data-id="${idx}"]`).value
+        }], { onConflict: 'telefono_empleado,fecha' });
+
+    if (error) {
+        console.error("❌ Error al guardar horas en Supabase:", error.message);
+    } else {
+        console.log(`⚡ Horas de ${emp.nombre} actualizadas en la nube: ${cantHoras} hrs.`);
+    }
 }
 
-function inyectarUbicacionProceso(idx, ubicacionTxt) {
+async function inyectarUbicacionProceso(idx, ubicacionTxt) {
     const fechaHoy = obtenerFechaFormateada();
-    let registro = crewAriar[idx].historialHoras.find(r => r.fecha === fechaHoy);
-    if (registro) { registro.ubicacion = ubicacionTxt; } 
-    else { const hrs = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0; crewAriar[idx].historialHoras.push({ fecha: fechaHoy, ubicacion: ubicacionTxt, cant: hrs }); }
+    const emp = crewAriar[idx];
+    
+    let registro = emp.historialHoras.find(r => r.fecha === fechaHoy);
+    if (registro) { 
+        registro.ubicacion = ubicacionTxt; 
+    } else { 
+        const hrs = parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0; 
+        emp.historialHoras.push({ fecha: fechaHoy, ubicacion: ubicacionTxt, cant: hrs }); 
+    }
     sincronizarBaseLocal();
+
+    const { error } = await supabase
+        .from('reportes_horas')
+        .upsert([{ 
+            telefono_empleado: emp.telefono, 
+            fecha: fechaHoy, 
+            horas: parseFloat(document.querySelector(`.input-mod-horas[data-id="${idx}"]`).value) || 0,
+            ubicacion: ubicacionTxt
+        }], { onConflict: 'telefono_empleado,fecha' });
+
+    if (error) {
+        console.error("❌ Error al guardar ubicación en Supabase:", error.message);
+    }
 }
 
 links.dash?.addEventListener('click', () => { cambiarVista('dash', 'Entrar a mis horas'); armarLoginUI(); });

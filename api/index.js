@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 // 🔑 Conexión directa a tus servicios
-const openai = new OpenAI({ apiKey: 'sk-proj-tu-llave-de-openai-aqui' }); // Pega tu llave sk- de OpenAI si la tienes
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const supabase = createClient(
     'https://waxwqdefxhmcodfflnxv.supabase.co', 
     'sb_publishable_JF8spitq1F98IowUWoICyg_XBB8Igda'

@@ -15,13 +15,9 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN; 
 const PORT = process.env.PORT || 10000;
 
-// Función para enviar mensajes a WhatsApp con retraso anti-eco
+// Función limpia para enviar mensajes sin retrasos raros
 async function enviarMensajeWhatsApp(chatId, texto) {
     try {
-        // ⏱️ TRUCO ANTI-ECO: Esperamos 2.5 segundos antes de responder 
-        // Esto le da tiempo al plan gratis de Whapi de cerrar su ciclo y evita el doble mensaje
-        await new Promise(resolve => setTimeout(resolve, 2500));
-        
         await axios.post('https://gate.whapi.cloud/messages/text', {
             to: chatId,
             body: texto
@@ -45,20 +41,32 @@ app.post('/webhook', async (req, res) => {
         const msg = mensajes[0];
         if (msg.from_me) return res.sendStatus(200); 
 
-        // 🛑 Avisamos a Render y Whapi de inmediato que el webhook fue recibido
-        res.sendStatus(200); 
-
         const chatId = msg.chat_id; 
         const telefonoUsuario = chatId.split('@')[0]; 
         const textoUsuario = msg.text?.body || "";
 
-        console.log(`✉️ Mensaje recibido de ${telefonoUsuario}: "${textoUsuario}"`);
+        // 🛑 ¡LA LLAVE DE ORO AQUÍ!
+        // Le respondemos a Whapi un "200 OK" INMEDIATAMENTE.
+        // Con esto Whapi cierra la conexión y promete no reenviar el mensaje.
+        res.sendStatus(200); 
+
+        // Todo el proceso pesado lo metemos en una función separada (Asíncrona)
+        // para que Render lo trabaje de fondo sin hacer esperar a Whapi.
+        processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario);
+
+    } catch (error) {
+        console.error("❌ Error en Webhook:", error);
+    }
+});
+
+// 🧠 Esta función trabaja de fondo mientras Whapi ya se fue a dormir
+async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
+    try {
+        console.log(`✉️ Procesando en segundo plano para ${telefonoUsuario}: "${textoUsuario}"`);
         const textoLimpio = textoUsuario.toLowerCase().trim();
 
         // 👑 1. FILTRO DE PRIORIDAD MÁXIMA PARA EDWIN (ADMINISTRADOR)
         if (telefonoUsuario.includes('7373883909')) {
-            
-            // Comando directo para agregar personas sin que OpenAI interfiera
             if (textoLimpio.startsWith('agregar a') && (textoLimpio.includes('numero') || textoLimpio.includes('número'))) {
                 try {
                     const partes = textoUsuario.split(/con el numero|con el número/i);
@@ -70,24 +78,23 @@ app.post('/webhook', async (req, res) => {
                             telefonoNuevo = telefonoNuevo.substring(1);
                         }
 
-                        // Guardamos en Supabase directo como activo
                         const { error } = await supabase.from('empleados').insert([
                             { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
                         ]);
 
                         if (error) throw error;
 
-                        await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase. Ya puede usar el sistema.`);
+                        await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase.`);
                         return; 
                     }
                 } catch (err) {
-                    await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Escríbeme exactamente:\n_Agregar a Nombre Apellido con el numero 1234567890_");
+                    await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Escríbeme: _Agregar a Nombre Apellido con el numero 1234567890_");
                     return;
                 }
             }
         }
 
-        // 👥 2. VALIDACIÓN DE USUARIOS NORMALES
+        // 👥 2. VALIDACIÓN DE USUARIOS
         let usuario = null;
         if (telefonoUsuario.includes('7373883909')) {
             usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
@@ -101,10 +108,10 @@ app.post('/webhook', async (req, res) => {
                 await supabase.from('empleados').insert([
                     { nombre: textoUsuario.trim(), telefono: telefonoUsuario, rol: 'trabajador', estado: 'pendiente_aprobacion' }
                 ]);
-                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${textoUsuario}*. Quedas en espera de que el administrador apruebe tu acceso.`);
+                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${textoUsuario}*. Quedas en espera de aprobación.`);
                 return;
             } else {
-                await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado en Ariar Steel. Por favor responde escribiendo tu *Nombre y Apellido* completo.");
+                await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado en Ariar Steel. Por favor escribe tu *Nombre y Apellido* completo.");
                 return;
             }
         }
@@ -178,9 +185,9 @@ app.post('/webhook', async (req, res) => {
         return;
 
     } catch (error) {
-        console.error("❌ Error General en Webhook:", error);
+        console.error("❌ Error en procesamiento de fondo:", error);
     }
-});
+}
 
 app.listen(PORT, () => {
     console.log(`🚀 Servidor definitivo de Ariar Steel corriendo en el puerto ${PORT}`);

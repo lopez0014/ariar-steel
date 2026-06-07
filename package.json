@@ -12,6 +12,10 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.107.0"
+    "@supabase/supabase-js": "^2.107.0",
+    "axios": "^1.17.0",
+    "express": "^5.2.1",
+    "openai": "^6.42.0",
+    "ws": "^8.21.0"
   }
 }

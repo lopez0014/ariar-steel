@@ -40,21 +40,21 @@ app.post('/webhook', async (req, res) => {
         const msg = mensajes[0];
         if (msg.from_me) return res.sendStatus(200); 
 
-        // 🛑 Evitamos mensajes dobles respondiendo de inmediato
+        // 🛑 SOLUCIÓN INMEDIATA AL DOBLE MENSAJE
+        // Le avisamos a Whapi que ya lo recibimos para que no lo reenvíe jamás
         res.sendStatus(200); 
 
         const chatId = msg.chat_id; 
-        const telefonoUsuario = chatId.split('@')[0]; 
+        const telefonoUsuario = msg.chat_id.split('@')[0]; 
         const textoUsuario = msg.text?.body || "";
 
         console.log(`✉️ Mensaje recibido de ${telefonoUsuario}: "${textoUsuario}"`);
-
         const textoLimpio = textoUsuario.toLowerCase().trim();
 
-        // 👑 INTERCEPCIÓN MAESTRA PARA EDWIN (ADMIN)
+        // 👑 1. FILTRO DE PRIORIDAD MÁXIMA PARA EDWIN (ADMINISTRADOR)
         if (telefonoUsuario.includes('7373883909')) {
             
-            // Si Edwin quiere registrar a alguien (Ej: "Agregar a Juan Perez con el numero 7371112222")
+            // Comando directo para agregar personas (Evita que OpenAI se meta en el camino)
             if (textoLimpio.startsWith('agregar a') && (textoLimpio.includes('numero') || textoLimpio.includes('número'))) {
                 try {
                     const partes = textoUsuario.split(/con el numero|con el número/i);
@@ -66,7 +66,7 @@ app.post('/webhook', async (req, res) => {
                             telefonoNuevo = telefonoNuevo.substring(1);
                         }
 
-                        // Guardamos directo en Supabase sin pasar por OpenAI
+                        // Guardamos en Supabase directo
                         const { error } = await supabase.from('empleados').insert([
                             { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
                         ]);
@@ -74,7 +74,7 @@ app.post('/webhook', async (req, res) => {
                         if (error) throw error;
 
                         await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase. Ya puede usar el sistema.`);
-                        return; // Detiene el código aquí para que la IA no hable por encima
+                        return; // Frenamos por completo para que no se mande ningún otro mensaje
                     }
                 } catch (err) {
                     await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Escríbeme exactamente:\n_Agregar a Nombre Apellido con el numero 1234567890_");
@@ -83,7 +83,7 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-        // 👥 DETERMINAR USUARIO PARA EL RESTO DEL FLUJO
+        // 👥 2. VALIDACIÓN DE USUARIOS NORMALES
         let usuario = null;
         if (telefonoUsuario.includes('7373883909')) {
             usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
@@ -92,7 +92,6 @@ app.post('/webhook', async (req, res) => {
             usuario = data;
         }
 
-        // Si es un número desconocido por completo
         if (!usuario) {
             if (textoUsuario.trim().split(" ").length >= 2) {
                 await supabase.from('empleados').insert([
@@ -111,7 +110,7 @@ app.post('/webhook', async (req, res) => {
             return;
         }
 
-        // 📍 MODULO: ¿Dónde es la obra?
+        // 📍 3. CONSULTA DE OBRAS DIRECTA
         if (textoLimpio.includes('obra') || textoLimpio.includes('donde') || textoLimpio.includes('dirección')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
             if (listaObras && listaObras.length > 0) {
@@ -122,11 +121,11 @@ app.post('/webhook', async (req, res) => {
             return;
         }
 
-        // 🤖 MÓDULO INTELIGENCIA ARTIFICIAL (OpenAI)
+        // 🤖 4. MÓDULO INTELIGENCIA ARTIFICIAL (OpenAI)
         const promptSistema = `
         Eres el asistente inteligente de la empresa "Ariar Steel".
         El usuario se llama ${usuario.nombre} y tiene el rol de ${usuario.rol}.
-        Si te saluda o habla de temas generales, responde de forma amigable y corta.
+        Si te saluda o habla de temas generales, responde de forma amigable, profesional y corta.
         Si te reporta horas de trabajo, responde ESTRICTAMENTE con este formato JSON:
         {
           "es_reporte_horas": true,

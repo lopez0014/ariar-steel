@@ -9,14 +9,12 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// 🔑 Conexión segura usando variables de entorno (Protegido contra bloqueos de GitHub)
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY }); 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN; 
 const PORT = process.env.PORT || 10000;
 
-// Función para enviar mensajes a WhatsApp mediante Whapi
 async function enviarMensajeWhatsApp(chatId, texto) {
     try {
         await axios.post('https://gate.whapi.cloud/messages/text', {
@@ -42,7 +40,6 @@ app.post('/webhook', async (req, res) => {
         const msg = mensajes[0];
         if (msg.from_me) return res.sendStatus(200); 
 
-        // 🛑 CONFIGURACIÓN ANTIDUPLICADO: Responde inmediato a Whapi para evitar dobles mensajes
         res.sendStatus(200); 
 
         const chatId = msg.chat_id; 
@@ -51,18 +48,49 @@ app.post('/webhook', async (req, res) => {
 
         console.log(`✉️ Mensaje recibido de ${telefonoUsuario}: "${textoUsuario}"`);
 
-        // 👑 CONTROL DE IDENTIDAD (Bypass de Oro para Edwin + Consulta a Base de Datos)
+        // 👑 CONTROL DE IDENTIDAD (Bypass de Oro para Edwin)
         let usuario = null;
-        if (telefonoUsuario.includes('7373883909')) {
-            // Te da el rango VIP directamente para que no dependas de cómo esté escrito el número
+        let esEdwin = telefonoUsuario.includes('7373883909');
+
+        if (esEdwin) {
             usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
+            
+            // 🔥 FUNCIÓN SUPERADMIN: REGISTRAR EMPLEADOS DIRECTO DESDE WHATSAPP
+            const textoLimpio = textoUsuario.toLowerCase();
+            if (textoLimpio.startsWith('agregar a') && textoLimpio.includes('numero')) {
+                try {
+                    // Sintaxis: "Agregar a [Nombre] con el numero [Telefono]"
+                    // Ejemplo: Agregar a Juan Perez con el numero 17371112222
+                    const partes = textoUsuario.split(/con el numero|con el número/i);
+                    const nombreNuevo = partes[0].replace(/agregar a/i, '').trim();
+                    let telefonoNuevo = partes[1].trim().replace(/[^0-9]/g, ''); // Limpia espacios o guiones
+                    
+                    if (nombreNuevo && telefonoNuevo) {
+                        // Si el número viene con el '1' de USA al inicio y mide más de 10 dígitos, se lo quitamos para estandarizar en Supabase
+                        if (telefonoNuevo.startsWith('1') && telefonoNuevo.length > 10) {
+                            telefonoNuevo = telefonoNuevo.substring(1);
+                        }
+
+                        // Insertamos directo como ACTIVO
+                        const { error } = await supabase.from('empleados').insert([
+                            { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
+                        ]);
+
+                        if (error) throw error;
+
+                        await enviarMensajeWhatsApp(chatId, `✅ *¡Entendido, Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo. Ya puede usar el bot.`);
+                        return;
+                    }
+                } catch (err) {
+                    await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Recuerda escribirme exactamente:\n_Agregar a Nombre Apellido con el numero 1234567890_");
+                    return;
+                }
+            }
         } else {
-            // Para cualquier otro número, consulta a Supabase normalmente
             const { data } = await supabase.from('empleados').select('*').eq('telefono', telefonoUsuario).maybeSingle();
             usuario = data;
         }
 
-        // Si el número no pertenece a Edwin ni existe en Supabase
         if (!usuario) {
             if (textoUsuario.trim().split(" ").length >= 2) {
                 await supabase.from('empleados').insert([
@@ -76,39 +104,33 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-        // Si es un empleado en espera
         if (usuario.estado === 'pendiente_aprobacion') {
             await enviarMensajeWhatsApp(chatId, `Hola *${usuario.nombre}*, tu perfil sigue en espera de aprobación.`);
             return;
         }
 
-        // 📍 1. MÓDULO DE CASOS DE EMERGENCIA (¿Dónde es la obra?) - CONSULTA REAL EN SUPABASE
+        // 📍 1. ¿Dónde es la obra?
         if (textoUsuario.toLowerCase().includes('obra') || textoUsuario.toLowerCase().includes('donde') || textoUsuario.toLowerCase().includes('dirección')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
             if (listaObras && listaObras.length > 0) {
-                await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].specificaciones || listaObras[0].especificaciones || 'Sin notas adicionales.'}`);
+                await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].especificaciones || 'Sin notas adicionales.'}`);
             } else {
-                await enviarMensajeWhatsApp(chatId, "Hola Edwin, no veo ninguna obra guardada en la tabla 'obras' de tu Supabase todavía. Agrega una para que pueda darte las direcciones.");
+                await enviarMensajeWhatsApp(chatId, "Hola Edwin, no veo ninguna obra guardada en la tabla 'obras' de tu Supabase todavía.");
             }
             return;
         }
 
-        // 🤖 2. MÓDULO INTELIGENTE (OpenAI) - Responde preguntas libres y analiza reportes de horas
+        // 🤖 2. MÓDULO INTELIGENCIA ARTIFICIAL (OpenAI)
         const promptSistema = `
-        Eres el asistente e inteligencia artificial exclusiva de la empresa "Ariar Steel".
-        El usuario que te escribe se llama ${usuario.nombre} y tiene el rol de ${usuario.rol}.
-        
-        Si te está saludando o haciendo preguntas generales sobre qué puedes hacer, responde de manera amigable, profesional y concisa.
-        
-        Si te está reportando horas trabajadas, DEBES responder de manera ESTRICTA con un objeto JSON válido que contenga la estructura abajo descrita.
-        Estructura JSON requerida para reportes de horas:
+        Eres el asistente de la empresa "Ariar Steel".
+        El usuario se llama ${usuario.nombre} y es ${usuario.rol}.
+        Si te saluda o habla normal, responde amigable.
+        Si te reporta horas, responde ESTRICTAMENTE con este JSON:
         {
           "es_reporte_horas": true,
-          "datos": [{"nombre_empleado": "Nombre detectado", "horas": 8, "obra": "Nombre de la obra"}],
-          "respuesta_whatsapp": "Mensaje amigable confirmando que procesaste las horas de manera exitosa."
+          "datos": [{"nombre_empleado": "Nombre", "horas": 8, "obra": "Wichita"}],
+          "respuesta_whatsapp": "Mensaje confirmando el registro."
         }
-        
-        Si no es un reporte de horas, responde normal usando texto, dejando "es_reporte_horas": false en tu mente y devolviendo la respuesta directa en texto libre.
         `;
 
         const respuestaIA = await openai.chat.completions.create({
@@ -121,18 +143,15 @@ app.post('/webhook', async (req, res) => {
 
         const contenidoRespuesta = respuestaIA.choices[0].message.content.trim();
 
-        // Verificamos si la IA intentó responder en formato JSON para un reporte de horas
         if (contenidoRespuesta.startsWith('{') && contenidoRespuesta.endsWith('}')) {
             const resultado = JSON.parse(contenidoRespuesta);
 
             if (resultado.es_reporte_horas && (usuario.rol === 'encargado' || usuario.rol === 'admin')) {
                 for (const item of resultado.datos) {
-                    // Busca dinámicamente la obra y el empleado en Supabase
                     const { data: obra } = await supabase.from('obras').select('id').ilike('nombre', `%${item.obra}%`).maybeSingle();
                     const { data: emp } = await supabase.from('empleados').select('id').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
 
                     if (obra && emp) {
-                        // Inserta el registro automático de nómina
                         await supabase.from('registro_horas').insert([
                             {
                                 empleado_id: emp.id,
@@ -150,7 +169,6 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-        // Si es una conversación normal (preguntas de qué hace, saludos, etc.) manda el texto directo de la IA
         await enviarMensajeWhatsApp(chatId, contenidoRespuesta);
         return;
 

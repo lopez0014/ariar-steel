@@ -15,7 +15,6 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN; 
 const PORT = process.env.PORT || 10000;
 
-// Función limpia para enviar mensajes sin retrasos raros
 async function enviarMensajeWhatsApp(chatId, texto) {
     try {
         await axios.post('https://gate.whapi.cloud/messages/text', {
@@ -41,17 +40,12 @@ app.post('/webhook', async (req, res) => {
         const msg = mensajes[0];
         if (msg.from_me) return res.sendStatus(200); 
 
+        res.sendStatus(200); 
+
         const chatId = msg.chat_id; 
         const telefonoUsuario = chatId.split('@')[0]; 
         const textoUsuario = msg.text?.body || "";
 
-        // 🛑 ¡LA LLAVE DE ORO AQUÍ!
-        // Le respondemos a Whapi un "200 OK" INMEDIATAMENTE.
-        // Con esto Whapi cierra la conexión y promete no reenviar el mensaje.
-        res.sendStatus(200); 
-
-        // Todo el proceso pesado lo metemos en una función separada (Asíncrona)
-        // para que Render lo trabaje de fondo sin hacer esperar a Whapi.
         processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario);
 
     } catch (error) {
@@ -59,13 +53,12 @@ app.post('/webhook', async (req, res) => {
     }
 });
 
-// 🧠 Esta función trabaja de fondo mientras Whapi ya se fue a dormir
 async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
     try {
-        console.log(`✉️ Procesando en segundo plano para ${telefonoUsuario}: "${textoUsuario}"`);
+        console.log(`✉️ Procesando para ${telefonoUsuario}: "${textoUsuario}"`);
         const textoLimpio = textoUsuario.toLowerCase().trim();
 
-        // 👑 1. FILTRO DE PRIORIDAD MÁXIMA PARA EDWIN (ADMINISTRADOR)
+        // 👑 1. FILTRO PARA EDWIN: AGREGAR EMPLEADOS
         if (telefonoUsuario.includes('7373883909')) {
             if (textoLimpio.startsWith('agregar a') && (textoLimpio.includes('numero') || textoLimpio.includes('número'))) {
                 try {
@@ -84,8 +77,8 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
 
                         if (error) throw error;
 
-                        await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase.`);
-                        return; 
+                        await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo.`);
+                        return; // Se detiene por completo
                     }
                 } catch (err) {
                     await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Escríbeme: _Agregar a Nombre Apellido con el numero 1234567890_");
@@ -127,7 +120,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             if (listaObras && listaObras.length > 0) {
                 await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].especificaciones || 'Sin notas adicionales.'}`);
             } else {
-                await enviarMensajeWhatsApp(chatId, "Hola Edwin, no veo ninguna obra guardada en la tabla 'obras' de tu Supabase todavía.");
+                await enviarMensajeWhatsApp(chatId, "Hola Edwin, no veo ninguna obra guardada en tu Supabase todavía.");
             }
             return;
         }
@@ -155,6 +148,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
 
         const contenidoRespuesta = respuestaIA.choices[0].message.content.trim();
 
+        // Si la IA respondió con un formato JSON (es un reporte de horas)
         if (contenidoRespuesta.startsWith('{') && contenidoRespuesta.endsWith('}')) {
             const resultado = JSON.parse(contenidoRespuesta);
 
@@ -177,12 +171,13 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                     }
                 }
                 await enviarMensajeWhatsApp(chatId, resultado.respuesta_whatsapp);
-                return;
+                return; // 🛑 DETENEMOS AQUÍ EL CÓDIGO
             }
         }
 
+        // Si la IA respondió en texto libre normal (saludos, preguntas, etc.)
         await enviarMensajeWhatsApp(chatId, contenidoRespuesta);
-        return;
+        return; // 🛑 ¡EL TRUCO MAESTRO! Detiene el código aquí para que no ejecute nada más abajo.
 
     } catch (error) {
         console.error("❌ Error en procesamiento de fondo:", error);

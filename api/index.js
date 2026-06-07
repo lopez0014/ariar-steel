@@ -13,8 +13,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const WHAPI_TOKEN = "84QHBugLbjKDEj19UbWO3qpWxXxil8op";
 const WHAPI_URL = "https://gate.whapi.cloud/messages/text";
 
+// Usamos la variable protegida de Render
 const apiKey = process.env.OPENAI_API_KEY;
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: apiKey });
+
+// --- FUNCIÓN PARA ENVIAR MENSAJES DE WHATSAPP ---
 
 // --- FUNCIÓN PARA ENVIAR MENSAJES DE WHATSAPP ---
 async function enviarMensajeWhatsApp(telefono, texto) {

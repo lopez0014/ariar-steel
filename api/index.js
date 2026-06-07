@@ -40,6 +40,7 @@ app.post('/webhook', async (req, res) => {
         const msg = mensajes[0];
         if (msg.from_me) return res.sendStatus(200); 
 
+        // 🛑 Evitamos mensajes dobles respondiendo de inmediato
         res.sendStatus(200); 
 
         const chatId = msg.chat_id; 
@@ -48,49 +49,50 @@ app.post('/webhook', async (req, res) => {
 
         console.log(`✉️ Mensaje recibido de ${telefonoUsuario}: "${textoUsuario}"`);
 
-        // 👑 CONTROL DE IDENTIDAD (Bypass de Oro para Edwin)
-        let usuario = null;
-        let esEdwin = telefonoUsuario.includes('7373883909');
+        const textoLimpio = textoUsuario.toLowerCase().trim();
 
-        if (esEdwin) {
-            usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
+        // 👑 INTERCEPCIÓN MAESTRA PARA EDWIN (ADMIN)
+        if (telefonoUsuario.includes('7373883909')) {
             
-            // 🔥 FUNCIÓN SUPERADMIN: REGISTRAR EMPLEADOS DIRECTO DESDE WHATSAPP
-            const textoLimpio = textoUsuario.toLowerCase();
-            if (textoLimpio.startsWith('agregar a') && textoLimpio.includes('numero')) {
+            // Si Edwin quiere registrar a alguien (Ej: "Agregar a Juan Perez con el numero 7371112222")
+            if (textoLimpio.startsWith('agregar a') && (textoLimpio.includes('numero') || textoLimpio.includes('número'))) {
                 try {
-                    // Sintaxis: "Agregar a [Nombre] con el numero [Telefono]"
-                    // Ejemplo: Agregar a Juan Perez con el numero 17371112222
                     const partes = textoUsuario.split(/con el numero|con el número/i);
                     const nombreNuevo = partes[0].replace(/agregar a/i, '').trim();
-                    let telefonoNuevo = partes[1].trim().replace(/[^0-9]/g, ''); // Limpia espacios o guiones
+                    let telefonoNuevo = partes[1].trim().replace(/[^0-9]/g, ''); 
                     
                     if (nombreNuevo && telefonoNuevo) {
-                        // Si el número viene con el '1' de USA al inicio y mide más de 10 dígitos, se lo quitamos para estandarizar en Supabase
                         if (telefonoNuevo.startsWith('1') && telefonoNuevo.length > 10) {
                             telefonoNuevo = telefonoNuevo.substring(1);
                         }
 
-                        // Insertamos directo como ACTIVO
+                        // Guardamos directo en Supabase sin pasar por OpenAI
                         const { error } = await supabase.from('empleados').insert([
                             { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
                         ]);
 
                         if (error) throw error;
 
-                        await enviarMensajeWhatsApp(chatId, `✅ *¡Entendido, Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo. Ya puede usar el bot.`);
-                        return;
+                        await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase. Ya puede usar el sistema.`);
+                        return; // Detiene el código aquí para que la IA no hable por encima
                     }
                 } catch (err) {
-                    await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Recuerda escribirme exactamente:\n_Agregar a Nombre Apellido con el numero 1234567890_");
+                    await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Escríbeme exactamente:\n_Agregar a Nombre Apellido con el numero 1234567890_");
                     return;
                 }
             }
+        }
+
+        // 👥 DETERMINAR USUARIO PARA EL RESTO DEL FLUJO
+        let usuario = null;
+        if (telefonoUsuario.includes('7373883909')) {
+            usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
         } else {
             const { data } = await supabase.from('empleados').select('*').eq('telefono', telefonoUsuario).maybeSingle();
             usuario = data;
         }
 
+        // Si es un número desconocido por completo
         if (!usuario) {
             if (textoUsuario.trim().split(" ").length >= 2) {
                 await supabase.from('empleados').insert([
@@ -109,8 +111,8 @@ app.post('/webhook', async (req, res) => {
             return;
         }
 
-        // 📍 1. ¿Dónde es la obra?
-        if (textoUsuario.toLowerCase().includes('obra') || textoUsuario.toLowerCase().includes('donde') || textoUsuario.toLowerCase().includes('dirección')) {
+        // 📍 MODULO: ¿Dónde es la obra?
+        if (textoLimpio.includes('obra') || textoLimpio.includes('donde') || textoLimpio.includes('dirección')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
             if (listaObras && listaObras.length > 0) {
                 await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].especificaciones || 'Sin notas adicionales.'}`);
@@ -120,12 +122,12 @@ app.post('/webhook', async (req, res) => {
             return;
         }
 
-        // 🤖 2. MÓDULO INTELIGENCIA ARTIFICIAL (OpenAI)
+        // 🤖 MÓDULO INTELIGENCIA ARTIFICIAL (OpenAI)
         const promptSistema = `
-        Eres el asistente de la empresa "Ariar Steel".
-        El usuario se llama ${usuario.nombre} y es ${usuario.rol}.
-        Si te saluda o habla normal, responde amigable.
-        Si te reporta horas, responde ESTRICTAMENTE con este JSON:
+        Eres el asistente inteligente de la empresa "Ariar Steel".
+        El usuario se llama ${usuario.nombre} y tiene el rol de ${usuario.rol}.
+        Si te saluda o habla de temas generales, responde de forma amigable y corta.
+        Si te reporta horas de trabajo, responde ESTRICTAMENTE con este formato JSON:
         {
           "es_reporte_horas": true,
           "datos": [{"nombre_empleado": "Nombre", "horas": 8, "obra": "Wichita"}],

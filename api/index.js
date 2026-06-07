@@ -78,7 +78,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                         if (error) throw error;
 
                         await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo.`);
-                        return; // Se detiene por completo
+                        return; 
                     }
                 } catch (err) {
                     await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Escríbeme: _Agregar a Nombre Apellido con el numero 1234567890_");
@@ -126,15 +126,21 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         }
 
         // 🤖 4. MÓDULO INTELIGENCIA ARTIFICIAL (OpenAI)
+        // 🔥 Aquí domamos a la IA para que deje de despedirse con la misma frase molesta
         const promptSistema = `
-        Eres el asistente inteligente de la empresa "Ariar Steel".
-        El usuario se llama ${usuario.nombre} y tiene el rol de ${usuario.rol}.
-        Si te saluda o habla de temas generales, responde de forma amigable, profesional y corta.
-        Si te reporta horas de trabajo, responde ESTRICTAMENTE con este formato JSON:
+        Eres el asistente automatizado de la empresa "Ariar Steel".
+        El usuario con el que hablas se llama ${usuario.nombre} y tiene el rango de ${usuario.rol}.
+        
+        REGLAS DE ORO DE TU COMPORTAMIENTO:
+        1. Responde de forma directa, concisa y al grano. No uses rodeos.
+        2. 🛑 PROHIBIDO: Jamás termines tus mensajes diciendo "cómo te puedo ayudar hoy", "¿en qué más te ayudo?", ni frases similares de servicio al cliente. Sé un asistente serio de construcción.
+        3. Da la información solicitada en un solo bloque de texto corto y termina ahí. No agregues saludos extras al final.
+        
+        Si te reporta horas de trabajo, responde ESTRICTAMENTE con este formato JSON y nada más:
         {
           "es_reporte_horas": true,
           "datos": [{"nombre_empleado": "Nombre", "horas": 8, "obra": "Wichita"}],
-          "respuesta_whatsapp": "Mensaje confirmando el registro."
+          "respuesta_whatsapp": "Mensaje corto confirmando el registro."
         }
         `;
 
@@ -148,7 +154,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
 
         const contenidoRespuesta = respuestaIA.choices[0].message.content.trim();
 
-        // Si la IA respondió con un formato JSON (es un reporte de horas)
         if (contenidoRespuesta.startsWith('{') && contenidoRespuesta.endsWith('}')) {
             const resultado = JSON.parse(contenidoRespuesta);
 
@@ -171,13 +176,13 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                     }
                 }
                 await enviarMensajeWhatsApp(chatId, resultado.respuesta_whatsapp);
-                return; // 🛑 DETENEMOS AQUÍ EL CÓDIGO
+                return; 
             }
         }
 
-        // Si la IA respondió en texto libre normal (saludos, preguntas, etc.)
+        // Envía el texto directo de la IA (que ya tiene prohibido decir la frase)
         await enviarMensajeWhatsApp(chatId, contenidoRespuesta);
-        return; // 🛑 ¡EL TRUCO MAESTRO! Detiene el código aquí para que no ejecute nada más abajo.
+        return; 
 
     } catch (error) {
         console.error("❌ Error en procesamiento de fondo:", error);

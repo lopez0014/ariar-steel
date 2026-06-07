@@ -15,8 +15,13 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN; 
 const PORT = process.env.PORT || 10000;
 
+// Función para enviar mensajes a WhatsApp con retraso anti-eco
 async function enviarMensajeWhatsApp(chatId, texto) {
     try {
+        // ⏱️ TRUCO ANTI-ECO: Esperamos 2.5 segundos antes de responder 
+        // Esto le da tiempo al plan gratis de Whapi de cerrar su ciclo y evita el doble mensaje
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        
         await axios.post('https://gate.whapi.cloud/messages/text', {
             to: chatId,
             body: texto
@@ -40,12 +45,11 @@ app.post('/webhook', async (req, res) => {
         const msg = mensajes[0];
         if (msg.from_me) return res.sendStatus(200); 
 
-        // 🛑 SOLUCIÓN INMEDIATA AL DOBLE MENSAJE
-        // Le avisamos a Whapi que ya lo recibimos para que no lo reenvíe jamás
+        // 🛑 Avisamos a Render y Whapi de inmediato que el webhook fue recibido
         res.sendStatus(200); 
 
         const chatId = msg.chat_id; 
-        const telefonoUsuario = msg.chat_id.split('@')[0]; 
+        const telefonoUsuario = chatId.split('@')[0]; 
         const textoUsuario = msg.text?.body || "";
 
         console.log(`✉️ Mensaje recibido de ${telefonoUsuario}: "${textoUsuario}"`);
@@ -54,7 +58,7 @@ app.post('/webhook', async (req, res) => {
         // 👑 1. FILTRO DE PRIORIDAD MÁXIMA PARA EDWIN (ADMINISTRADOR)
         if (telefonoUsuario.includes('7373883909')) {
             
-            // Comando directo para agregar personas (Evita que OpenAI se meta en el camino)
+            // Comando directo para agregar personas sin que OpenAI interfiera
             if (textoLimpio.startsWith('agregar a') && (textoLimpio.includes('numero') || textoLimpio.includes('número'))) {
                 try {
                     const partes = textoUsuario.split(/con el numero|con el número/i);
@@ -66,7 +70,7 @@ app.post('/webhook', async (req, res) => {
                             telefonoNuevo = telefonoNuevo.substring(1);
                         }
 
-                        // Guardamos en Supabase directo
+                        // Guardamos en Supabase directo como activo
                         const { error } = await supabase.from('empleados').insert([
                             { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
                         ]);
@@ -74,7 +78,7 @@ app.post('/webhook', async (req, res) => {
                         if (error) throw error;
 
                         await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase. Ya puede usar el sistema.`);
-                        return; // Frenamos por completo para que no se mande ningún otro mensaje
+                        return; 
                     }
                 } catch (err) {
                     await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Escríbeme exactamente:\n_Agregar a Nombre Apellido con el numero 1234567890_");

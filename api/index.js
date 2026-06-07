@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const WHAPI_TOKEN = "84QHBugLbjKDEj19UbWO3qpWxXxil8op";
 const WHAPI_URL = "https://gate.whapi.cloud/messages/text";
 
-const OPENAI_API_KEY = "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";
+const OPENAI_API_KEY = "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";
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // --- FUNCIÓN PARA ENVIAR MENSAJES DE WHATSAPP ---

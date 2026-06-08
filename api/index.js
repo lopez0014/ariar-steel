@@ -71,13 +71,14 @@ async function ejecutarEnvioMasivo() {
 }
 
 // ==========================================
-// ⏰ TAREAS AUTOMÁTICAS (CRON JOBS)
+// ⏰ TAREAS AUTOMÁTICAS REALES (CRON JOBS)
 // ==========================================
 
-// 🧪 1. CRON DE PRUEBA - Hoy a las 9:30 PM (Hora 21:30)
-cron.schedule('30 21 * * *', async () => {
-    console.log("⏰ Ejecutando prueba automatizada de las 9:30 PM...");
+// 1. Recordatorio General de la mañana - Todos los días a las 7:00 AM en punto
+cron.schedule('0 7 * * *', async () => {
+    console.log("⏰ Ejecutando recordatorio automático general de las 7:00 AM...");
     try {
+        // Busca a TODOS los trabajadores que estén en estado activo
         const { data: trabajadores } = await supabase
             .from('empleados')
             .select('nombre, telefono')
@@ -85,34 +86,9 @@ cron.schedule('30 21 * * *', async () => {
             .eq('rol', 'trabajador');
 
         if (!trabajadores || trabajadores.length === 0) {
-            console.log("⚠️ No se encontraron trabajadores activos para recibir la prueba.");
+            console.log("⚠️ No hay trabajadores activos para el aviso matutino.");
             return;
         }
-
-        for (const t of trabajadores) {
-            const chatId = `${t.telefono}@c.us`;
-            const mensaje = `¡Buen día, *${t.nombre}*! ☀️ *(Prueba de control de horas de las 9:30 PM)*\n\nRecuerda reportar tus horas con tu encargado al finalizar la jornada de hoy para que todo tu pago quede registrado a tiempo.\n\n¡Que tengas un excelente día de trabajo! 🛠️ *Ariar Steel*`;
-            await enviarMensajeWhatsApp(chatId, mensaje);
-        }
-    } catch (error) {
-        console.error("❌ Error en la prueba de las 9:30 PM:", error);
-    }
-}, {
-    scheduled: true,
-    timezone: "America/Chicago"
-});
-
-// 2. Recordatorio real de la mañana - Todos los días a las 7:00 AM
-cron.schedule('0 7 * * *', async () => {
-    console.log("⏰ Ejecutando recordatorio automático de las 7:00 AM...");
-    try {
-        const { data: trabajadores } = await supabase
-            .from('empleados')
-            .select('nombre, telefono')
-            .eq('estado', 'activo')
-            .eq('rol', 'trabajador');
-
-        if (!trabajadores || trabajadores.length === 0) return;
 
         for (const t of trabajadores) {
             const chatId = `${t.telefono}@c.us`;
@@ -124,10 +100,10 @@ cron.schedule('0 7 * * *', async () => {
     }
 }, {
     scheduled: true,
-    timezone: "America/Chicago"
+    timezone: "America/Chicago" // Ajustado a tu zona horaria local
 });
 
-// 3. Reporte real del final del día - Todos los días a las 6:00 PM
+// 2. Reporte del final del día - Todos los días a las 6:00 PM
 cron.schedule('0 18 * * *', async () => {
     console.log("⏰ Ejecutando reporte automático de las 6:00 PM...");
     try {
@@ -135,7 +111,7 @@ cron.schedule('0 18 * * *', async () => {
 
         const { data: trabajadores } = await supabase
             .from('empleados')
-            .select('id, Exton, nombre, telefono')
+            .select('id, nombre, telefono')
             .eq('estado', 'activo')
             .eq('rol', 'trabajador');
 
@@ -391,8 +367,8 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
             if (resultado.es_reporte_horas) {
                 if (tienePermisosJefe) {
                     for (const item of resultado.datos) {
-                        const { data: obra } = await supabase.from('obras').select('id, nombre').ilike('nombre', `%${item.obra}%`).maybeSingle();
-                        const { data: emp } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
+                        const { data: obra = null } = await supabase.from('obras').select('id, nombre').ilike('nombre', `%${item.obra}%`).maybeSingle();
+                        const { data: emp = null } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
 
                         if (obra) {
                             await supabase.from('registro_horas').insert([

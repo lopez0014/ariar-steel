@@ -57,51 +57,49 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
     try {
         console.log(`✉️ Procesando para ${telefonoUsuario}: "${textoUsuario}"`);
         
-        // Limpiamos el texto quitándole acentos raros para que el sistema no se confunda
         let textoNormalizado = textoUsuario.toLowerCase().trim()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Quita acentos (número -> numero)
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+
+        // 👑 VALIDACIÓN REFORZADA DE IDENTIDAD PARA EDWIN (Acepta con o sin el '1')
+        const esEdwin = telefonoUsuario.includes('7373883909');
 
         // 👑 1. FILTRO ULTRA-TOLERANTE PARA EDWIN (AGREGAR EMPLEADOS)
-        if (telefonoUsuario.includes('7373883909')) {
+        if (esEdwin) {
             if (textoNormalizado.startsWith('agregar a')) {
                 try {
-                    // Cortamos usando expresiones regulares para que acepte "con el numero", "numero", "num", o "con el numero"
                     const partes = textoUsuario.split(/con el numero|con el número|numero|número/i);
                     
                     if (partes.length >= 2) {
                         const nombreNuevo = partes[0].replace(/agregar a/i, '').trim();
-                        let telefonoNuevo = partes[1].trim().replace(/[^0-9]/g, ''); // Deja SOLO los números
+                        let telefonoNuevo = partes[1].trim().replace(/[^0-9]/g, ''); 
 
                         if (nombreNuevo && telefonoNuevo) {
-                            // Si el número viene con el '1' de USA al inicio y es largo, se lo quitamos
                             if (telefonoNuevo.startsWith('1') && telefonoNuevo.length > 10) {
                                 telefonoNuevo = telefonoNuevo.substring(1);
                             }
 
-                            // Guardamos directo en Supabase como activo
                             const { error } = await supabase.from('empleados').insert([
                                 { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
                             ]);
 
                             if (error) throw error;
 
-                            await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase. Ya puede usar el sistema.`);
-                            return; 
+                            await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase.`);
+                            return; // Freno absoluto de mano
                         }
                     }
                 } catch (err) {
                     console.error("❌ Error al registrar:", err);
                 }
                 
-                // Si entra a "agregar a" pero no se procesó bien, le da un ejemplo masticadito
-                await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.*\n\nEscríbeme exactamente así (copia, pega y cambia los datos):\n\n_Agregar a Melvin Pop con el numero 7371112222_");
+                await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.*\n\nEscríbeme exactamente así:\n\n_Agregar a Melvin Pop con el numero 7371112222_");
                 return;
             }
         }
 
         // 👥 2. VALIDACIÓN DE USUARIOS
         let usuario = null;
-        if (telefonoUsuario.includes('7373883909')) {
+        if (esEdwin) {
             usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
         } else {
             const { data } = await supabase.from('empleados').select('*').eq('telefono', telefonoUsuario).maybeSingle();

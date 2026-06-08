@@ -32,7 +32,6 @@ async function enviarMensajeWhatsApp(chatId, texto) {
     }
 }
 
-// 📢 FUNCIÓN INTERNA PARA EJECUTAR EL ENVÍO MASIVO
 async function ejecutarEnvioMasivo() {
     const { data: trabajadores, error } = await supabase
         .from('empleados')
@@ -93,7 +92,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
 
         const esEdwin = telefonoUsuario.includes('7373883909');
 
-        // Registro express exclusivo de Edwin
         if (esEdwin) {
             if (textoNormalizado === 'disparar bienvenida masiva') {
                 await enviarMensajeWhatsApp(chatId, "⏳ Iniciando el envío de mensajes de bienvenida...");
@@ -132,7 +130,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
-        // Buscar usuario en base de datos
         let usuario = null;
         if (esEdwin) {
             usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
@@ -141,15 +138,33 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             usuario = data;
         }
 
+        // 🧠 MEJORA DE REGISTRO NUEVO: La IA extrae SOLO el nombre real
         if (!usuario) {
             if (textoUsuario.trim().split(" ").length >= 2) {
+                const promptRegistro = `
+                Analiza el siguiente mensaje de un trabajador que intenta registrarse en el sistema.
+                Tu tarea es extraer ÚNICAMENTE su Nombre y Apellido real. Quita saludos, introducciones o frases como "hola me quiero registrar".
+                
+                Mensaje: "${textoUsuario}"
+                
+                Responde ESTRICTAMENTE con el Nombre y Apellido limpio, capitalizado (ejemplo: "Denis Mendoza"). Nada de texto extra.
+                `;
+
+                const respuestaRegistro = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: [{ role: "user", content: promptRegistro }]
+                });
+
+                const nombreLimpio = respuestaRegistro.choices[0].message.content.trim();
+
                 await supabase.from('empleados').insert([
-                    { nombre: textoUsuario.trim(), telefono: telefonoUsuario, rol: 'trabajador', estado: 'pendiente_aprobacion' }
+                    { nombre: nombreLimpio, telefono: telefonoUsuario, rol: 'trabajador', estado: 'pendiente_aprobacion' }
                 ]);
-                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${textoUsuario}*. En espera de aprobación.`);
+                
+                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLimpio}*. Quedas en espera de aprobación por parte de Edwin.`);
                 return;
             } else {
-                await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado. Escribe tu *Nombre y Apellido*.");
+                await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado en Ariar Steel. Por favor escribe tu *Nombre y Apellido* completo.");
                 return;
             }
         }
@@ -159,7 +174,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             return;
         }
 
-        // Consultas de dirección de obra
         const tieneHorasNumeros = /\b\d+\b/.test(textoNormalizado); 
         if (!tieneHorasNumeros && (textoNormalizado.includes('donde es') || textoNormalizado.includes('direccion') || textoNormalizado.trim() === 'obra')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
@@ -169,7 +183,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             return;
         }
 
-        // Indicaciones del Sistema para la IA
         const promptSistema = `
         Eres el asistente de "Ariar Steel". Hablas con ${usuario.nombre} (Rol: ${usuario.rol}).
         Si reporta horas, responde estrictamente en este formato JSON:
@@ -197,7 +210,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             const resultado = JSON.parse(contenidoRespuesta);
 
             if (resultado.es_reporte_horas) {
-                // 🛑 EL CANDADO REAL CORREGIDO: Compara estrictamente con 'rol' en minúsculas
                 if (usuario.rol === 'encargado' || usuario.rol === 'admin') {
                     for (const item of resultado.datos) {
                         const { data: obra } = await supabase.from('obras').select('id, nombre').ilike('nombre', `%${item.obra}%`).maybeSingle();
@@ -225,7 +237,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                     await enviarMensajeWhatsApp(chatId, resultado.respuesta_whatsapp);
                     return;
                 } else {
-                    // 🛑 REBOTE AUTOMÁTICO: Si un trabajador intenta registrar, la IA le dice que no tiene permisos
                     await enviarMensajeWhatsApp(chatId, `❌ Lo siento *${usuario.nombre}*, los trabajadores no tienen autorización para registrar horas en el sistema.`);
                     return;
                 }

@@ -158,12 +158,12 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             return;
         }
 
-        // Menú de consulta de Obras (Filtro inteligente solo si no lleva intenciones de registrar horas)
-        const tieneHoras o Numeros = /\b\d+\b/.test(textoNormalizado); 
-        if (!tieneHoras o Numeros && (textoNormalizado.includes('donde es') || textoNormalizado.includes('direccion') || textoNormalizado.trim() === 'obra' || textoNormalizado.trim() === 'obras')) {
+        // Menú de consulta de Obras (Filtro inteligente que no interfiere si lleva números de horas)
+        const tieneHorasNumeros = /\b\d+\b/.test(textoNormalizado); 
+        if (!tieneHorasNumeros && (textoNormalizado.includes('donde es') || textoNormalizado.includes('direccion') || textoNormalizado.trim() === 'obra' || textoNormalizado.trim() === 'obras')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
             if (listaObras && listaObras.length > 0) {
-                await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].specificaciones || 'Sin notas adicionales.'}`);
+                await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].especificaciones || 'Sin notas adicionales.'}`);
             } else {
                 await enviarMensajeWhatsApp(chatId, "Hola Edwin, no veo ninguna obra guardada en tu Supabase todavía.");
             }
@@ -206,20 +206,20 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         if (contenidoRespuesta.startsWith('{') && contenidoRespuesta.endsWith('}')) {
             const resultado = JSON.parse(contenidoRespuesta);
 
-            if (resultado.es_reporte_horas && (usuario.rol === 'encargado' || usuario.rol === 'admin')) {
+            if (resultado.es_reporte_horas && (usuario.role === 'encargado' || usuario.rol === 'admin')) {
                 for (const item of resultado.datos) {
                     const { data: obra } = await supabase.from('obras').select('id').ilike('nombre', `%${item.obra}%`).maybeSingle();
                     const { data: emp } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
 
                     if (obra) {
-                        // 🛠️ BLINDAJE ANTI-VACÍOS: Si la IA no empareja el nombre exacto por texto, hereda los datos de quien escribe
+                        // BLINDAJE ANTI-VACÍOS: Si no empareja por texto, hereda los datos de quien escribe
                         const empleadoIdFinal = emp ? emp.id : usuario.id;
                         const empleadoNombreFinal = emp ? emp.nombre : usuario.nombre;
 
                         await supabase.from('registro_horas').insert([
                             {
                                 empleado_id: empleadoIdFinal,
-                                nombre_empleado: empleadoNombreFinal, // <-- Nombre inyectado perfectamente
+                                nombre_empleado: empleadoNombreFinal, 
                                 obra_id: obra.id,
                                 fecha: new Date().toISOString().split('T')[0],
                                 horas: item.horas,

@@ -32,6 +32,39 @@ async function enviarMensajeWhatsApp(chatId, texto) {
     }
 }
 
+// 🚀 NUEVA RUTA PARA ENVIAR EL MENSAJE MASIVO DE BIENVENIDA
+app.post('/enviar-bienvenida-masiva', async (req, res) => {
+    try {
+        // 1. Traer todos los empleados activos con rol de trabajador
+        const { data: trabajadores, error } = await supabase
+            .from('empleados')
+            .select('nombre, telefono')
+            .eq('estado', 'activo')
+            .eq('rol', 'trabajador');
+
+        if (error) throw error;
+        if (!trabajadores || trabajadores.length === 0) {
+            return res.status(400).json({ mensaje: "No encontré trabajadores activos en Supabase." });
+        }
+
+        console.log(`📢 Iniciando envío masivo a ${trabajadores.length} trabajadores...`);
+
+        // 2. Enviar el mensaje uno por uno
+        for (const t of trabajadores) {
+            const chatId = `${t.telefono}@c.us`;
+            const mensaje = `¡Hola *${t.nombre}*! 🛠️\n\nSoy el asistente virtual oficial de *Ariar Steel*. A partir de ahora, estaré encargado de llevar el control de tus horas de trabajo junto con tu encargado para que todo tu pago esté siempre en orden y al día.\n\nNo es necesario que respondas a este mensaje, ¡que tengas una excelente jornada laboral! 🦾🔥`;
+            
+            await enviarMensajeWhatsApp(chatId, mensaje);
+        }
+
+        res.json({ mensaje: `¡Éxito! Mensaje enviado a ${trabajadores.length} trabajadores.` });
+
+    } catch (error) {
+        console.error("❌ Error en envío masivo:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/webhook', async (req, res) => {
     try {
         const mensajes = req.body.messages;
@@ -60,10 +93,8 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         let textoNormalizado = textoUsuario.toLowerCase().trim()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
 
-        // 👑 VALIDACIÓN REFORZADA DE IDENTIDAD PARA EDWIN (Acepta con o sin el '1')
         const esEdwin = telefonoUsuario.includes('7373883909');
 
-        // 👑 1. FILTRO ULTRA-TOLERANTE PARA EDWIN (AGREGAR EMPLEADOS)
         if (esEdwin) {
             if (textoNormalizado.startsWith('agregar a')) {
                 try {
@@ -85,7 +116,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                             if (error) throw error;
 
                             await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase.`);
-                            return; // Freno absoluto de mano
+                            return;
                         }
                     }
                 } catch (err) {
@@ -97,7 +128,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
-        // 👥 2. VALIDACIÓN DE USUARIOS
         let usuario = null;
         if (esEdwin) {
             usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
@@ -124,7 +154,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             return;
         }
 
-        // 📍 3. CONSULTA DE OBRAS DIRECTA
         if (textoNormalizado.includes('obra') || textoNormalizado.includes('donde') || textoNormalizado.includes('direccion')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
             if (listaObras && listaObras.length > 0) {
@@ -135,15 +164,14 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             return;
         }
 
-        // 🤖 4. MÓDULO INTELIGENCIA ARTIFICIAL (OpenAI)
         const promptSistema = `
         Eres el asistente automatizado de la empresa "Ariar Steel".
         El usuario con el que hablas se llama ${usuario.nombre} y tiene el rango de ${usuario.rol}.
         
         REGLAS DE ORO DE TU COMPORTAMIENTO:
         1. Responde de forma directa, concisa y al grano. No uses rodeos.
-        2. 🛑 PROHIBIDO: Jamás termines tus mensajes diciendo "cómo te puedo ayudar hoy", "¿en qué más te ayudo?", ni frases similares. Sé un asistente serio de construcción.
-        3. Da la información solicitada en un solo bloque de texto corto y termina ahí. No agregues saludos extras al final.
+        2. 🛑 PROHIBIDO: Jamás termines tus mensajes diciendo "cómo te puedo ayudar hoy", "¿en qué más te ayudo?", ni frases similares.
+        3. Da la información solicitada en un solo bloque de texto corto y termina ahí.
         
         Si te reporta horas de trabajo, responde ESTRICTAMENTE con este formato JSON y nada más:
         {
@@ -169,12 +197,14 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             if (resultado.es_reporte_horas && (usuario.rol === 'encargado' || usuario.rol === 'admin')) {
                 for (const item of resultado.datos) {
                     const { data: obra } = await supabase.from('obras').select('id').ilike('nombre', `%${item.obra}%`).maybeSingle();
-                    const { data: emp } = await supabase.from('empleados').select('id').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
+                    const { data: emp } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
 
                     if (obra && emp) {
+                        // 🛠️ AQUÍ AHORA GUARDA EL NOMBRE DEL EMPLEADO TAMBIÉN EN LA COLUMNA NUEVA
                         await supabase.from('registro_horas').insert([
                             {
                                 empleado_id: emp.id,
+                                nombre_empleado: emp.nombre, // <-- ¡Guardado de nombre activado!
                                 obra_id: obra.id,
                                 fecha: new Date().toISOString().split('T')[0],
                                 horas: item.horas,
@@ -198,5 +228,5 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
 }
 
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor definitivo de Ariar Steel corriendo en el puerto ${PORT}`);
+    console.log(`🚀 Servidor de Ariar Steel corriendo en el puerto ${PORT}`);
 });

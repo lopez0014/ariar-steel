@@ -32,7 +32,7 @@ async function enviarMensajeWhatsApp(chatId, texto) {
     }
 }
 
-// 🚀 NUEVA RUTA PARA ENVIAR EL MENSAJE MASIVO DE BIENVENIDA
+// 📢 RUTA PARA ENVIAR EL MENSAJE MASIVO DE BIENVENIDA
 app.post('/enviar-bienvenida-masiva', async (req, res) => {
     try {
         // 1. Traer todos los empleados activos con rol de trabajador
@@ -95,6 +95,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
 
         const esEdwin = telefonoUsuario.includes('7373883909');
 
+        // Lógica de registro express por parte de Edwin
         if (esEdwin) {
             if (textoNormalizado.startsWith('agregar a')) {
                 try {
@@ -128,6 +129,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
+        // Identificar usuario que escribe
         let usuario = null;
         if (esEdwin) {
             usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
@@ -136,6 +138,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             usuario = data;
         }
 
+        // Si no existe, se manda al congelador
         if (!usuario) {
             if (textoUsuario.trim().split(" ").length >= 2) {
                 await supabase.from('empleados').insert([
@@ -149,21 +152,25 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
+        // Si está congelado, rebota
         if (usuario.estado === 'pendiente_aprobacion') {
             await enviarMensajeWhatsApp(chatId, `Hola *${usuario.nombre}*, tu perfil sigue en espera de aprobación.`);
             return;
         }
 
-        if (textoNormalizado.includes('obra') || textoNormalizado.includes('donde') || textoNormalizado.includes('direccion')) {
+        // Menú de consulta de Obras (Filtro inteligente solo si no lleva intenciones de registrar horas)
+        const tieneHoras o Numeros = /\b\d+\b/.test(textoNormalizado); 
+        if (!tieneHoras o Numeros && (textoNormalizado.includes('donde es') || textoNormalizado.includes('direccion') || textoNormalizado.trim() === 'obra' || textoNormalizado.trim() === 'obras')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
             if (listaObras && listaObras.length > 0) {
-                await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].especificaciones || 'Sin notas adicionales.'}`);
+                await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].specificaciones || 'Sin notas adicionales.'}`);
             } else {
                 await enviarMensajeWhatsApp(chatId, "Hola Edwin, no veo ninguna obra guardada en tu Supabase todavía.");
             }
             return;
         }
 
+        // Cerebro IA para procesar el texto o reporte de horas
         const promptSistema = `
         Eres el asistente automatizado de la empresa "Ariar Steel".
         El usuario con el que hablas se llama ${usuario.nombre} y tiene el rango de ${usuario.rol}.
@@ -189,7 +196,12 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             ]
         });
 
-        const contenidoRespuesta = respuestaIA.choices[0].message.content.trim();
+        let contenidoRespuesta = respuestaIA.choices[0].message.content.trim();
+
+        // Quitar posibles bloques de markdown que a veces pone la IA
+        if (contenidoRespuesta.startsWith("```json")) {
+            contenidoRespuesta = contenidoRespuesta.substring(7, contenidoRespuesta.length - 3).trim();
+        }
 
         if (contenidoRespuesta.startsWith('{') && contenidoRespuesta.endsWith('}')) {
             const resultado = JSON.parse(contenidoRespuesta);
@@ -199,12 +211,15 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                     const { data: obra } = await supabase.from('obras').select('id').ilike('nombre', `%${item.obra}%`).maybeSingle();
                     const { data: emp } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
 
-                    if (obra && emp) {
-                        // 🛠️ AQUÍ AHORA GUARDA EL NOMBRE DEL EMPLEADO TAMBIÉN EN LA COLUMNA NUEVA
+                    if (obra) {
+                        // 🛠️ BLINDAJE ANTI-VACÍOS: Si la IA no empareja el nombre exacto por texto, hereda los datos de quien escribe
+                        const empleadoIdFinal = emp ? emp.id : usuario.id;
+                        const empleadoNombreFinal = emp ? emp.nombre : usuario.nombre;
+
                         await supabase.from('registro_horas').insert([
                             {
-                                empleado_id: emp.id,
-                                nombre_empleado: emp.nombre, // <-- ¡Guardado de nombre activado!
+                                empleado_id: empleadoIdFinal,
+                                nombre_empleado: empleadoNombreFinal, // <-- Nombre inyectado perfectamente
                                 obra_id: obra.id,
                                 fecha: new Date().toISOString().split('T')[0],
                                 horas: item.horas,

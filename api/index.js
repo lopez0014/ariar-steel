@@ -15,6 +15,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN; 
 const PORT = process.env.PORT || 10000;
 
+// Función estándar para enviar mensajes de texto
 async function enviarMensajeWhatsApp(chatId, texto) {
     try {
         await axios.post('https://gate.whapi.cloud/messages/text', {
@@ -32,12 +33,27 @@ async function enviarMensajeWhatsApp(chatId, texto) {
     }
 }
 
+// Función para descargar la foto desde los servidores de Whapi y convertirla a Base64
+async function descargarImagenBase64(mediaUrl) {
+    try {
+        const respuesta = await axios.get(mediaUrl, {
+            headers: { 'Authorization': `Bearer ${WHAPI_TOKEN}` },
+            responseType: 'arraybuffer'
+        });
+        return Buffer.from(respuesta.data, 'binary').toString('base64');
+    } catch (err) {
+        console.error("❌ Error al descargar imagen de Whapi:", err.message);
+        throw err;
+    }
+}
+
+// Función interna para el envío masivo de bienvenida
 async function ejecutarEnvioMasivo() {
     const { data: trabajadores, error } = await supabase
         .from('empleados')
         .select('nombre, telefono')
         .eq('estado', 'activo')
-        .eq('role', 'trabajador'); // Nota: usa la columna exacta de tu DB, si es 'rol' o 'role'
+        .eq('rol', 'trabajador');
 
     if (error) throw error;
     if (!trabajadores || trabajadores.length === 0) {
@@ -54,6 +70,7 @@ async function ejecutarEnvioMasivo() {
     return { exito: true, conteo: trabajadores.length };
 }
 
+// Ruta Web para el envío masivo
 app.get('/enviar-bienvenida-masiva', async (req, res) => {
     try {
         const resultado = await ejecutarEnvioMasivo();
@@ -64,6 +81,7 @@ app.get('/enviar-bienvenida-masiva', async (req, res) => {
     }
 });
 
+// Webhook Principal
 app.post('/webhook', async (req, res) => {
     try {
         const mensajes = req.body.messages;
@@ -76,25 +94,138 @@ app.post('/webhook', async (req, res) => {
 
         const chatId = msg.chat_id; 
         const telefonoUsuario = chatId.split('@')[0]; 
+        
+        // Revisar si viene texto o es una foto/imagen
         const textoUsuario = msg.text?.body || "";
+        const esImagen = msg.type === 'image';
+        const mediaUrl = esImagen ? msg.image?.link : null;
 
-        processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario);
+        processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, esImagen, mediaUrl);
 
     } catch (error) {
         console.error("❌ Error en Webhook:", error);
     }
 });
 
-async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
+async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, esImagen, mediaUrl) {
     try {
+        // 1. Buscar al usuario en Supabase para validar permisos
+        const { data: usuario } = await supabase.from('empleados').select('*').eq('telefono', telefonoUsuario).maybeSingle();
+
+        // Si no está registrado, flujo de auto-registro (solo texto)
+        if (!usuario) {
+            if (!esImagen && textoUsuario.trim().split(" ").length >= 2) {
+                const promptRegistro = `Analiza el mensaje y extrae SOLO el Nombre y Apellido real limpio: "${textoUsuario}"`;
+                const respuestaRegistro = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: [{ role: "user", content: promptRegistro }]
+                });
+                const nombreLimpio = respuestaRegistro.choices[0].message.content.trim();
+
+                await supabase.from('empleados').insert([
+                    { nombre: nombreLimpio, telefono: telefonoUsuario, rol: 'trabajador', estado: 'pendiente_aprobacion' }
+                ]);
+                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLimpio}*. Quedas en espera de aprobación.`);
+                return;
+            } else {
+                await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado en Ariar Steel. Escribe tu *Nombre y Apellido* completo.");
+                return;
+            }
+        }
+
+        // Si está congelado
+        if (usuario.estado === 'pendiente_aprobacion') {
+            await enviarMensajeWhatsApp(chatId, `Hola *${usuario.nombre}*, tu perfil sigue en espera de aprobación.`);
+            return;
+        }
+
+        // Validar si el usuario tiene permisos de jefe (admin o encargado)
+        const tienePermisosJefe = usuario.rol === 'admin' || usuario.rol === 'encargado';
+
+        // 📸 FLUJO SI EL USUARIO MANDA UNA FOTO
+        if (esImagen && mediaUrl) {
+            if (!tienePermisosJefe) {
+                await enviarMensajeWhatsApp(chatId, `❌ Lo siento *${usuario.nombre}*, no tienes autorización para enviar reportes gráficos.`);
+                return;
+            }
+
+            await enviarMensajeWhatsApp(chatId, "📸 He recibido tu foto. Estoy procesando y leyendo la hoja de horas con Inteligencia Artificial, dame unos segundos... ⏳");
+
+            // Descargar la foto y pasarla a Base64
+            const imagenBase64 = await descargarImagenBase64(mediaUrl);
+
+            // Prompt especial de Visión para leer la lista
+            const promptVision = `
+            Estás viendo una fotografía de una hoja de reporte de horas manuscrita o impresa de la empresa "Ariar Steel".
+            Tu trabajo es leer cuidadosamente la imagen, identificar los nombres de los trabajadores, las horas que hicieron y la obra (Wichita u otra).
+            
+            Devuelve ESTRICTAMENTE un JSON con este formato exacto, sin textos extras, sin bloques markdown de código:
+            {
+              "es_reporte_horas": true,
+              "datos": [
+                {"nombre_empleado": "Nombre Completo", "horas": 8, "obra": "Nombre de la Obra"}
+              ],
+              "respuesta_whatsapp": "✅ ¡Éxito! He procesado la foto correctamente y registré las horas de la lista."
+            }
+            `;
+
+            const respuestaVision = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [
+                    {
+                        role: "user",
+                        content: [
+                            { type: "text", text: promptVision },
+                            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imagenBase64}` } }
+                        ]
+                    }
+                ]
+            });
+
+            let contenidoRespuesta = respuestaVision.choices[0].message.content.trim();
+            if (contenidoRespuesta.startsWith("```json")) {
+                contenidoRespuesta = contenidoRespuesta.substring(7, contenidoRespuesta.length - 3).trim();
+            }
+
+            try {
+                const resultado = JSON.parse(contenidoRespuesta);
+                if (resultado.es_reporte_horas && resultado.datos.length > 0) {
+                    for (const item of resultado.datos) {
+                        const { data: obra } = await supabase.from('obras').select('id, nombre').ilike('nombre', `%${item.obra}%`).maybeSingle();
+                        const { data: emp } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
+
+                        if (obra) {
+                            await supabase.from('registro_horas').insert([
+                                {
+                                    empleado_id: emp ? emp.id : usuario.id,
+                                    nombre_empleado: emp ? emp.nombre : item.nombre_empleado, 
+                                    obra_id: obra.id,
+                                    nombre_obra: obra.nombre,
+                                    fecha: new Date().toISOString().split('T')[0],
+                                    horas: item.horas,
+                                    estado_pago: 'fondo',
+                                    estado_confirmacion: 'en_espera'
+                                }
+                            ]);
+                        }
+                    }
+                    await enviarMensajeWhatsApp(chatId, resultado.respuesta_whatsapp);
+                    return;
+                }
+            } catch (err) {
+                console.error("❌ Error al parsear JSON de Visión:", err);
+                await enviarMensajeWhatsApp(chatId, "❌ Hubo un problema al interpretar los datos de la fotografía. Intenta tomarla con mejor luz o más cerca.");
+                return;
+            }
+            return;
+        }
+
+        // 📝 FLUJO NORMAL SI EL USUARIO MANDA TEXTO
         let textoNormalizado = textoUsuario.toLowerCase().trim()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
 
-        // 🔍 AHORA BUSCAMOS A TODO EL MUNDO DIRECTAMENTE EN SUPABASE (INCLUYÉNDOTE A TI)
-        const { data: usuario } = await supabase.from('empleados').select('*').eq('telefono', telefonoUsuario).maybeSingle();
-
-        // Si el número tiene comandos de administrador pero queremos validar su rol desde la DB
-        if (usuario && (usuario.rol === 'admin' || usuario.rol === 'encargado')) {
+        // Comandos rápidos de Admin
+        if (tienePermisosJefe) {
             if (textoNormalizado === 'disparar bienvenida masiva') {
                 await enviarMensajeWhatsApp(chatId, "⏳ Iniciando el envío de mensajes de bienvenida...");
                 const resultado = await ejecutarEnvioMasivo();
@@ -132,42 +263,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
-        // Si no existe en la base de datos, flujo de auto-registro
-        if (!usuario) {
-            if (textoUsuario.trim().split(" ").length >= 2) {
-                const promptRegistro = `
-                Analiza el siguiente mensaje de un trabajador que intenta registrarse en el sistema.
-                Tu tarea es extraer ÚNICAMENTE su Nombre y Apellido real. Quita saludos, introducciones o frases como "hola me quiero registrar".
-                
-                Mensaje: "${textoUsuario}"
-                
-                Responde ESTRICTAMENTE con el Nombre y Apellido limpio, capitalizado (ejemplo: "Denis Mendoza"). Nada de texto extra.
-                `;
-
-                const respuestaRegistro = await openai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    messages: [{ role: "user", content: promptRegistro }]
-                });
-
-                const nombreLimpio = respuestaRegistro.choices[0].message.content.trim();
-
-                await supabase.from('empleados').insert([
-                    { nombre: nombreLimpio, telefono: telefonoUsuario, rol: 'trabajador', estado: 'pendiente_aprobacion' }
-                ]);
-                
-                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLimpio}*. Quedas en espera de aprobación.`);
-                return;
-            } else {
-                await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado en Ariar Steel. Por favor escribe tu *Nombre y Apellido* completo.");
-                return;
-            }
-        }
-
-        if (usuario.estado === 'pendiente_aprobacion') {
-            await enviarMensajeWhatsApp(chatId, `Hola *${usuario.nombre}*, tu perfil sigue en espera de aprobación.`);
-            return;
-        }
-
+        // Consultas de dirección de obra
         const tieneHorasNumeros = /\b\d+\b/.test(textoNormalizado); 
         if (!tieneHorasNumeros && (textoNormalizado.includes('donde es') || textoNormalizado.includes('direccion') || textoNormalizado.trim() === 'obra')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
@@ -177,8 +273,9 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             return;
         }
 
+        // IA para procesar reportes de texto
         const promptSistema = `
-        Eres el asistente de "Ariar Steel". Hablas con ${usuario.nombre} (Rol: ${usuario.rol}).
+        Eres el asistente de "Ariar Steel". Hablas con ${usuario.nombre} (Rol: ${usuario.role || usuario.rol}).
         Si reporta horas, responde estrictamente en este formato JSON:
         {
           "es_reporte_horas": true,
@@ -204,22 +301,18 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             const resultado = JSON.parse(contenidoRespuesta);
 
             if (resultado.es_reporte_horas) {
-                if (usuario.rol === 'encargado' || usuario.rol === 'admin') {
+                if (tienePermisosJefe) {
                     for (const item of resultado.datos) {
                         const { data: obra } = await supabase.from('obras').select('id, nombre').ilike('nombre', `%${item.obra}%`).maybeSingle();
                         const { data: emp } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
 
                         if (obra) {
-                            const empleadoIdFinal = emp ? emp.id : usuario.id;
-                            const empleadoNombreFinal = emp ? emp.nombre : usuario.nombre;
-                            const obraNombreFinal = obra ? obra.nombre : item.obra; 
-
                             await supabase.from('registro_horas').insert([
                                 {
-                                    empleado_id: empleadoIdFinal,
-                                    nombre_empleado: empleadoNombreFinal, 
+                                    empleado_id: emp ? emp.id : usuario.id,
+                                    nombre_empleado: emp ? emp.nombre : item.nombre_empleado, 
                                     obra_id: obra.id,
-                                    nombre_obra: obraNombreFinal,
+                                    nombre_obra: obra.nombre,
                                     fecha: new Date().toISOString().split('T')[0],
                                     horas: item.horas,
                                     estado_pago: 'fondo',

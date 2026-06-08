@@ -35,7 +35,6 @@ async function enviarMensajeWhatsApp(chatId, texto) {
 // 📢 RUTA PARA ENVIAR EL MENSAJE MASIVO DE BIENVENIDA
 app.post('/enviar-bienvenida-masiva', async (req, res) => {
     try {
-        // 1. Traer todos los empleados activos con rol de trabajador
         const { data: trabajadores, error } = await supabase
             .from('empleados')
             .select('nombre, telefono')
@@ -49,7 +48,6 @@ app.post('/enviar-bienvenida-masiva', async (req, res) => {
 
         console.log(`📢 Iniciando envío masivo a ${trabajadores.length} trabajadores...`);
 
-        // 2. Enviar el mensaje uno por uno
         for (const t of trabajadores) {
             const chatId = `${t.telefono}@c.us`;
             const mensaje = `¡Hola *${t.nombre}*! 🛠️\n\nSoy el asistente virtual oficial de *Ariar Steel*. A partir de ahora, estaré encargado de llevar el control de tus horas de trabajo junto con tu encargado para que todo tu pago esté siempre en orden y al día.\n\nNo es necesario que respondas a este mensaje, ¡que tengas una excelente jornada laboral! 🦾🔥`;
@@ -95,7 +93,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
 
         const esEdwin = telefonoUsuario.includes('7373883909');
 
-        // Lógica de registro express por parte de Edwin
         if (esEdwin) {
             if (textoNormalizado.startsWith('agregar a')) {
                 try {
@@ -129,7 +126,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
-        // Identificar usuario que escribe
         let usuario = null;
         if (esEdwin) {
             usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
@@ -138,7 +134,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             usuario = data;
         }
 
-        // Si no existe, se manda al congelador
         if (!usuario) {
             if (textoUsuario.trim().split(" ").length >= 2) {
                 await supabase.from('empleados').insert([
@@ -152,13 +147,11 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
-        // Si está congelado, rebota
         if (usuario.estado === 'pendiente_aprobacion') {
             await enviarMensajeWhatsApp(chatId, `Hola *${usuario.nombre}*, tu perfil sigue en espera de aprobación.`);
             return;
         }
 
-        // Menú de consulta de Obras (Filtro inteligente que no interfiere si lleva números de horas)
         const tieneHorasNumeros = /\b\d+\b/.test(textoNormalizado); 
         if (!tieneHorasNumeros && (textoNormalizado.includes('donde es') || textoNormalizado.includes('direccion') || textoNormalizado.trim() === 'obra' || textoNormalizado.trim() === 'obras')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
@@ -170,13 +163,12 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             return;
         }
 
-        // Cerebro IA para procesar el texto o reporte de horas
         const promptSistema = `
         Eres el asistente automatizado de la empresa "Ariar Steel".
         El usuario con el que hablas se llama ${usuario.nombre} y tiene el rango de ${usuario.rol}.
         
         REGLAS DE ORO DE TU COMPORTAMIENTO:
-        1. Responde de forma directa, concisa y al grano. No uses rodeos.
+        1. Responde de forma directa, concisa and al grano. No uses rodeos.
         2. 🛑 PROHIBIDO: Jamás termines tus mensajes diciendo "cómo te puedo ayudar hoy", "¿en qué más te ayudo?", ni frases similares.
         3. Da la información solicitada en un solo bloque de texto corto y termina ahí.
         
@@ -198,7 +190,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
 
         let contenidoRespuesta = respuestaIA.choices[0].message.content.trim();
 
-        // Quitar posibles bloques de markdown que a veces pone la IA
         if (contenidoRespuesta.startsWith("```json")) {
             contenidoRespuesta = contenidoRespuesta.substring(7, contenidoRespuesta.length - 3).trim();
         }
@@ -206,21 +197,23 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         if (contenidoRespuesta.startsWith('{') && contenidoRespuesta.endsWith('}')) {
             const resultado = JSON.parse(contenidoRespuesta);
 
-            if (resultado.es_reporte_horas && (usuario.role === 'encargado' || usuario.rol === 'admin')) {
+            if (resultado.es_reporte_horas && (usuario.rol === 'encargado' || usuario.rol === 'admin')) {
                 for (const item of resultado.datos) {
-                    const { data: obra } = await supabase.from('obras').select('id').ilike('nombre', `%${item.obra}%`).maybeSingle();
+                    const { data: obra } = await supabase.from('obras').select('id, nombre').ilike('nombre', `%${item.obra}%`).maybeSingle();
                     const { data: emp } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
 
                     if (obra) {
-                        // BLINDAJE ANTI-VACÍOS: Si no empareja por texto, hereda los datos de quien escribe
                         const empleadoIdFinal = emp ? emp.id : usuario.id;
                         const empleadoNombreFinal = emp ? emp.nombre : usuario.nombre;
+                        // Si por algún detalle la IA lee mal la obra, por defecto le dejamos el nombre que extrajo
+                        const obraNombreFinal = obra ? obra.nombre : item.obra; 
 
                         await supabase.from('registro_horas').insert([
                             {
                                 empleado_id: empleadoIdFinal,
                                 nombre_empleado: empleadoNombreFinal, 
                                 obra_id: obra.id,
+                                nombre_obra: obraNombreFinal, // <-- ¡Inyección del nombre de la obra lista!
                                 fecha: new Date().toISOString().split('T')[0],
                                 horas: item.horas,
                                 estado_pago: 'fondo',

@@ -32,33 +32,52 @@ async function enviarMensajeWhatsApp(chatId, texto) {
     }
 }
 
-// 📢 RUTA PARA ENVIAR EL MENSAJE MASIVO DE BIENVENIDA
+// 📢 FUNCIÓN INTERNA PARA EJECUTAR EL ENVÍO MASIVO
+async function ejecutarEnvioMasivo() {
+    // 1. Traer todos los empleados activos con rol de trabajador
+    const { data: trabajadores, error } = await supabase
+        .from('empleados')
+        .select('nombre, telefono')
+        .eq('estado', 'activo')
+        .eq('rol', 'trabajador');
+
+    if (error) throw error;
+    if (!trabajadores || trabajadores.length === 0) {
+        return { exito: false, conteo: 0, msg: "No encontré trabajadores activos en Supabase." };
+    }
+
+    console.log(`📢 Iniciando envío masivo a ${trabajadores.length} trabajadores...`);
+
+    // 2. Enviar el mensaje uno por uno
+    for (const t of trabajadores) {
+        const chatId = `${t.telefono}@c.us`;
+        const mensaje = `¡Hola *${t.nombre}*! 🛠️\n\nSoy el asistente virtual oficial de *Ariar Steel*. A partir de ahora, estaré encargado de llevar el control de tus horas de trabajo junto con tu encargado para que todo tu pago esté siempre en orden y al día.\n\nNo es necesario que respondas a este mensaje, ¡que tengas una excelente jornada laboral! 🦾🔥`;
+        
+        await enviarMensajeWhatsApp(chatId, mensaje);
+    }
+
+    return { exito: true, conteo: trabajadores.length };
+}
+
+// 🌐 AHORA TAMBIÉN SOPORTA GET DESDE EL NAVEGADOR
+app.get('/enviar-bienvenida-masiva', async (req, res) => {
+    try {
+        const resultado = await ejecutarEnvioMasivo();
+        if (!resultado.exito) return res.status(400).json({ mensaje: resultado.msg });
+        res.json({ mensaje: `¡Éxito! Mensaje enviado a ${resultado.conteo} trabajadores.` });
+    } catch (error) {
+        console.error("❌ Error en envío masivo web:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/enviar-bienvenida-masiva', async (req, res) => {
     try {
-        const { data: trabajadores, error } = await supabase
-            .from('empleados')
-            .select('nombre, telefono')
-            .eq('estado', 'activo')
-            .eq('rol', 'trabajador');
-
-        if (error) throw error;
-        if (!trabajadores || trabajadores.length === 0) {
-            return res.status(400).json({ mensaje: "No encontré trabajadores activos en Supabase." });
-        }
-
-        console.log(`📢 Iniciando envío masivo a ${trabajadores.length} trabajadores...`);
-
-        for (const t of trabajadores) {
-            const chatId = `${t.telefono}@c.us`;
-            const mensaje = `¡Hola *${t.nombre}*! 🛠️\n\nSoy el asistente virtual oficial de *Ariar Steel*. A partir de ahora, estaré encargado de llevar el control de tus horas de trabajo junto con tu encargado para que todo tu pago esté siempre en orden y al día.\n\nNo es necesario que respondas a este mensaje, ¡que tengas una excelente jornada laboral! 🦾🔥`;
-            
-            await enviarMensajeWhatsApp(chatId, mensaje);
-        }
-
-        res.json({ mensaje: `¡Éxito! Mensaje enviado a ${trabajadores.length} trabajadores.` });
-
+        const resultado = await ejecutarEnvioMasivo();
+        if (!resultado.exito) return res.status(400).json({ mensaje: resultado.msg });
+        res.json({ mensaje: `¡Éxito! Mensaje enviado a ${resultado.conteo} trabajadores.` });
     } catch (error) {
-        console.error("❌ Error en envío masivo:", error);
+        console.error("❌ Error en envío masivo post:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -94,6 +113,22 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         const esEdwin = telefonoUsuario.includes('7373883909');
 
         if (esEdwin) {
+            // 🔑 COMANDO SECRETO DESDE TU WHATSAPP DIRECTO
+            if (textoNormalizado === 'disparar bienvenida masiva') {
+                await enviarMensajeWhatsApp(chatId, "⏳ Iniciando el envío de mensajes de bienvenida a los trabajadores...");
+                try {
+                    const resultado = await ejecutarEnvioMasivo();
+                    if (resultado.exito) {
+                        await enviarMensajeWhatsApp(chatId, `✅ ¡Éxito Edwin! Mensajes de bienvenida enviados a ${resultado.conteo} trabajadores.`);
+                    } else {
+                        await enviarMensajeWhatsApp(chatId, `⚠️ Nota: ${resultado.msg}`);
+                    }
+                } catch (err) {
+                    await enviarMensajeWhatsApp(chatId, `❌ Error al ejecutar: ${err.message}`);
+                }
+                return;
+            }
+
             if (textoNormalizado.startsWith('agregar a')) {
                 try {
                     const partes = textoUsuario.split(/con el numero|con el número|numero|número/i);
@@ -168,11 +203,11 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         El usuario con el que hablas se llama ${usuario.nombre} y tiene el rango de ${usuario.rol}.
         
         REGLAS DE ORO DE TU COMPORTAMIENTO:
-        1. Responde de forma directa, concisa and al grano. No uses rodeos.
+        1. Responde de forma directa, concisa y al grano. No uses rodeos.
         2. 🛑 PROHIBIDO: Jamás termines tus mensajes diciendo "cómo te puedo ayudar hoy", "¿en qué más te ayudo?", ni frases similares.
         3. Da la información solicitada en un solo bloque de texto corto y termina ahí.
         
-        Si te reporta horas de trabajo, responde ESTRICTAMENTE con este formato JSON y nada más:
+        Si te reporta horas de trabajo, responde ESTRICTAMENTE con este formato JSON and nada más:
         {
           "es_reporte_horas": true,
           "datos": [{"nombre_empleado": "Nombre", "horas": 8, "obra": "Wichita"}],
@@ -205,7 +240,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                     if (obra) {
                         const empleadoIdFinal = emp ? emp.id : usuario.id;
                         const empleadoNombreFinal = emp ? emp.nombre : usuario.nombre;
-                        // Si por algún detalle la IA lee mal la obra, por defecto le dejamos el nombre que extrajo
                         const obraNombreFinal = obra ? obra.nombre : item.obra; 
 
                         await supabase.from('registro_horas').insert([
@@ -213,7 +247,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                                 empleado_id: empleadoIdFinal,
                                 nombre_empleado: empleadoNombreFinal, 
                                 obra_id: obra.id,
-                                nombre_obra: obraNombreFinal, // <-- ¡Inyección del nombre de la obra lista!
+                                nombre_obra: obraNombreFinal,
                                 fecha: new Date().toISOString().split('T')[0],
                                 horas: item.horas,
                                 estado_pago: 'fondo',

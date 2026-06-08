@@ -37,7 +37,7 @@ async function ejecutarEnvioMasivo() {
         .from('empleados')
         .select('nombre, telefono')
         .eq('estado', 'activo')
-        .eq('rol', 'trabajador');
+        .eq('role', 'trabajador'); // Nota: usa la columna exacta de tu DB, si es 'rol' o 'role'
 
     if (error) throw error;
     if (!trabajadores || trabajadores.length === 0) {
@@ -90,14 +90,16 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         let textoNormalizado = textoUsuario.toLowerCase().trim()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
 
-        const esEdwin = telefonoUsuario.includes('7373883909');
+        // 🔍 AHORA BUSCAMOS A TODO EL MUNDO DIRECTAMENTE EN SUPABASE (INCLUYÉNDOTE A TI)
+        const { data: usuario } = await supabase.from('empleados').select('*').eq('telefono', telefonoUsuario).maybeSingle();
 
-        if (esEdwin) {
+        // Si el número tiene comandos de administrador pero queremos validar su rol desde la DB
+        if (usuario && (usuario.rol === 'admin' || usuario.rol === 'encargado')) {
             if (textoNormalizado === 'disparar bienvenida masiva') {
                 await enviarMensajeWhatsApp(chatId, "⏳ Iniciando el envío de mensajes de bienvenida...");
                 const resultado = await ejecutarEnvioMasivo();
                 if (resultado.exito) {
-                    await enviarMensajeWhatsApp(chatId, `✅ ¡Éxito Edwin! Mensajes enviados a ${resultado.conteo} trabajadores.`);
+                    await enviarMensajeWhatsApp(chatId, `✅ ¡Éxito! Mensajes enviados a ${resultado.conteo} trabajadores.`);
                 } else {
                     await enviarMensajeWhatsApp(chatId, `⚠️ Nota: ${resultado.msg}`);
                 }
@@ -119,7 +121,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                         ]);
 
                         if (error) throw error;
-                        await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* en Supabase.`);
+                        await enviarMensajeWhatsApp(chatId, `✅ *¡Listo!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* en Supabase.`);
                         return;
                     }
                 } catch (err) {
@@ -130,15 +132,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
-        let usuario = null;
-        if (esEdwin) {
-            usuario = { id: 1, nombre: "Edwin", rol: "admin", estado: "activo" };
-        } else {
-            const { data } = await supabase.from('empleados').select('*').eq('telefono', telefonoUsuario).maybeSingle();
-            usuario = data;
-        }
-
-        // 🧠 MEJORA DE REGISTRO NUEVO: La IA extrae SOLO el nombre real
+        // Si no existe en la base de datos, flujo de auto-registro
         if (!usuario) {
             if (textoUsuario.trim().split(" ").length >= 2) {
                 const promptRegistro = `
@@ -161,7 +155,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
                     { nombre: nombreLimpio, telefono: telefonoUsuario, rol: 'trabajador', estado: 'pendiente_aprobacion' }
                 ]);
                 
-                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLimpio}*. Quedas en espera de aprobación por parte de Edwin.`);
+                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLimpio}*. Quedas en espera de aprobación.`);
                 return;
             } else {
                 await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado en Ariar Steel. Por favor escribe tu *Nombre y Apellido* completo.");

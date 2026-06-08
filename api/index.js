@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { OpenAI } from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
+import cron from 'node-cron'; // ⏰ El reloj automático
 
 dotenv.config();
 
@@ -33,7 +34,84 @@ async function enviarMensajeWhatsApp(chatId, texto) {
     }
 }
 
-// Función para descargar la foto desde los servidores de Whapi y convertirla a Base64
+// ==========================================
+// ⏰ TAREAS AUTOMÁTICAS (CRON JOBS)
+// ==========================================
+
+// 1. Recordatorio de la mañana - Todos los días a las 7:00 AM
+cron.schedule('0 7 * * *', async () => {
+    console.log("⏰ Ejecutando recordatorio automático de las 7:00 AM...");
+    try {
+        const { data: trabajadores } = await supabase
+            .from('empleados')
+            .select('nombre, telefono')
+            .eq('estado', 'activo')
+            .eq('rol', 'trabajador');
+
+        if (!trabajadores || trabajadores.length === 0) return;
+
+        for (const t of trabajadores) {
+            const chatId = `${t.telefono}@c.us`;
+            const mensaje = `¡Buen día, *${t.nombre}*! ☀️\n\nRecuerda reportar tus horas con tu encargado al finalizar la jornada de hoy para que todo tu pago quede registrado a tiempo.\n\n¡Que tengas un excelente día de trabajo! 🛠️ *Ariar Steel*`;
+            await enviarMensajeWhatsApp(chatId, mensaje);
+        }
+    } catch (error) {
+        console.error("❌ Error en cron de la mañana:", error);
+    }
+}, {
+    scheduled: true,
+    timezone: "America/Chicago" // Ajusta a tu zona horaria (ej: America/Chicago, America/New_York)
+});
+
+// 2. Reporte del final del día - Todos los días a las 6:00 PM
+cron.schedule('0 18 * * *', async () => {
+    console.log("⏰ Ejecutando reporte automático de las 6:00 PM...");
+    try {
+        const hoy = new Date().toISOString().split('T')[0];
+
+        // Buscar trabajadores activos
+        const { data: trabajadores } = await supabase
+            .from('empleados')
+            .select('id, nombre, telefono')
+            .eq('estado', 'activo')
+            .eq('rol', 'trabajador');
+
+        if (!trabajadores || trabajadores.length === 0) return;
+
+        for (const t of trabajadores) {
+            const chatId = `${t.telefono}@c.us`;
+
+            // Buscar si se le registraron horas hoy
+            const { data: horasHoy } = await supabase
+                .from('registro_horas')
+                .select('horas, nombre_obra')
+                .eq('empleado_id', t.id)
+                .eq('fecha', hoy);
+
+            if (horasHoy && horasHoy.length > 0) {
+                // Si tiene horas asignadas
+                let detalleHoras = "";
+                horasHoy.forEach(reg => {
+                    detalleHoras += `📍 *Obra:* ${reg.nombre_obra} | ⏱️ *Horas:* ${reg.horas} hrs.\n`;
+                });
+
+                const mensajeConHoras = `Hola *${t.nombre}*! 👍\n\nEste es el resumen de tus horas registradas el día de hoy (*${hoy}*):\n\n${detalleHoras}\nSi ves algún error o falta alguna obra, avísale de inmediato a tu encargado para corregirlo.`;
+                await enviarMensajeWhatsApp(chatId, mensajeConHoras);
+            } else {
+                // Si se olvidó registrarlo o no trabajó
+                const mensajeSinHoras = `Hola *${t.nombre}*. ⚠️\n\nEl día de hoy no se encontraron horas registradas a tu nombre en el sistema.\n\nSi trabajaste hoy, por favor comunícate de inmediato con tu encargado para que agregue tus horas correctamente.`;
+                await enviarMensajeWhatsApp(chatId, mensajeSinHoras);
+            }
+        }
+    } catch (error) {
+        console.error("❌ Error en cron de la tarde:", error);
+    }
+}, {
+    scheduled: true,
+    timezone: "America/Chicago"
+});
+
+// [El resto del código de tus Webhooks, envío masivo y API se mantiene exactamente igual abajo...]
 async function descargarImagenBase64(mediaUrl) {
     try {
         const respuesta = await axios.get(mediaUrl, {
@@ -47,7 +125,6 @@ async function descargarImagenBase64(mediaUrl) {
     }
 }
 
-// Función interna para el envío masivo de bienvenida
 async function ejecutarEnvioMasivo() {
     const { data: trabajadores, error } = await supabase
         .from('empleados')
@@ -63,14 +140,12 @@ async function ejecutarEnvioMasivo() {
     for (const t of trabajadores) {
         const chatId = `${t.telefono}@c.us`;
         const mensaje = `¡Hola *${t.nombre}*! 🛠️\n\nSoy el asistente virtual oficial de *Ariar Steel*. A partir de ahora, estaré encargado de llevar el control de tus horas de trabajo junto con tu encargado para que todo tu pago esté siempre en orden y al día.\n\nNo es necesario que respondas a este mensaje, ¡que tengas una excelente jornada laboral! 🦾🔥`;
-        
         await enviarMensajeWhatsApp(chatId, mensaje);
     }
 
     return { exito: true, conteo: trabajadores.length };
 }
 
-// Ruta Web para el envío masivo
 app.get('/enviar-bienvenida-masiva', async (req, res) => {
     try {
         const resultado = await ejecutarEnvioMasivo();
@@ -81,7 +156,6 @@ app.get('/enviar-bienvenida-masiva', async (req, res) => {
     }
 });
 
-// Webhook Principal
 app.post('/webhook', async (req, res) => {
     try {
         const mensajes = req.body.messages;
@@ -95,7 +169,6 @@ app.post('/webhook', async (req, res) => {
         const chatId = msg.chat_id; 
         const telefonoUsuario = chatId.split('@')[0]; 
         
-        // Revisar si viene texto o es una foto/imagen
         const textoUsuario = msg.text?.body || "";
         const esImagen = msg.type === 'image';
         const mediaUrl = esImagen ? msg.image?.link : null;
@@ -109,10 +182,8 @@ app.post('/webhook', async (req, res) => {
 
 async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, esImagen, mediaUrl) {
     try {
-        // 1. Buscar al usuario en Supabase para validar permisos
         const { data: usuario } = await supabase.from('empleados').select('*').eq('telefono', telefonoUsuario).maybeSingle();
 
-        // Si no está registrado, flujo de auto-registro (solo texto)
         if (!usuario) {
             if (!esImagen && textoUsuario.trim().split(" ").length >= 2) {
                 const promptRegistro = `Analiza el mensaje y extrae SOLO el Nombre y Apellido real limpio: "${textoUsuario}"`;
@@ -125,7 +196,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
                 await supabase.from('empleados').insert([
                     { nombre: nombreLimpio, telefono: telefonoUsuario, rol: 'trabajador', estado: 'pendiente_aprobacion' }
                 ]);
-                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLimpio}*. Quedas en espera de aprobación.`);
+                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLoptio || nombreLimpio}*. Quedas en espera de aprobación.`);
                 return;
             } else {
                 await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado en Ariar Steel. Escribe tu *Nombre y Apellido* completo.");
@@ -133,16 +204,13 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
             }
         }
 
-        // Si está congelado
         if (usuario.estado === 'pendiente_aprobacion') {
             await enviarMensajeWhatsApp(chatId, `Hola *${usuario.nombre}*, tu perfil sigue en espera de aprobación.`);
             return;
         }
 
-        // Validar si el usuario tiene permisos de jefe (admin o encargado)
         const tienePermisosJefe = usuario.rol === 'admin' || usuario.rol === 'encargado';
 
-        // 📸 FLUJO SI EL USUARIO MANDA UNA FOTO
         if (esImagen && mediaUrl) {
             if (!tienePermisosJefe) {
                 await enviarMensajeWhatsApp(chatId, `❌ Lo siento *${usuario.nombre}*, no tienes autorización para enviar reportes gráficos.`);
@@ -150,22 +218,15 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
             }
 
             await enviarMensajeWhatsApp(chatId, "📸 He recibido tu foto. Estoy procesando y leyendo la hoja de horas con Inteligencia Artificial, dame unos segundos... ⏳");
-
-            // Descargar la foto y pasarla a Base64
             const imagenBase64 = await descargarImagenBase64(mediaUrl);
 
-            // Prompt especial de Visión para leer la lista
             const promptVision = `
-            Estás viendo una fotografía de una hoja de reporte de horas manuscrita o impresa de la empresa "Ariar Steel".
-            Tu trabajo es leer cuidadosamente la imagen, identificar los nombres de los trabajadores, las horas que hicieron y la obra (Wichita u otra).
-            
-            Devuelve ESTRICTAMENTE un JSON con este formato exacto, sin textos extras, sin bloques markdown de código:
+            Estás viendo una fotografía de un reporte de horas para la empresa "Ariar Steel". Extrae el nombre de cada trabajador, sus horas y la obra mencionada.
+            Responde UNICAMENTE con un objeto JSON válido, sin textos extras, sin bloques markdown de código:
             {
               "es_reporte_horas": true,
-              "datos": [
-                {"nombre_empleado": "Nombre Completo", "horas": 8, "obra": "Nombre de la Obra"}
-              ],
-              "respuesta_whatsapp": "✅ ¡Éxito! He procesado la foto correctamente y registré las horas de la lista."
+              "datos": [{"nombre_empleado": "Nombre", "horas": 8, "obra": "Wichita"}],
+              "respuesta_whatsapp": "✅ ¡Éxito! He procesado la fotografía correctamente."
             }
             `;
 
@@ -183,13 +244,14 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
             });
 
             let contenidoRespuesta = respuestaVision.choices[0].message.content.trim();
-            if (contenidoRespuesta.startsWith("```json")) {
-                contenidoRespuesta = contenidoRespuesta.substring(7, contenidoRespuesta.length - 3).trim();
+            if (contenidoRespuesta.includes("{")) {
+                contenidoRespuesta = contenidoRespuesta.substring(contenidoRespuesta.indexOf("{"), contenidoRespuesta.lastIndexOf("}") + 1);
             }
 
             try {
                 const resultado = JSON.parse(contenidoRespuesta);
-                if (resultado.es_reporte_horas && resultado.datos.length > 0) {
+                if (resultado.es_reporte_horas && resultado.datos && resultado.datos.length > 0) {
+                    let registrosExitosos = 0;
                     for (const item of resultado.datos) {
                         const { data: obra } = await supabase.from('obras').select('id, nombre').ilike('nombre', `%${item.obra}%`).maybeSingle();
                         const { data: emp } = await supabase.from('empleados').select('id, nombre').ilike('nombre', `%${item.nombre_empleado}%`).limit(1).maybeSingle();
@@ -202,29 +264,31 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
                                     obra_id: obra.id,
                                     nombre_obra: obra.nombre,
                                     fecha: new Date().toISOString().split('T')[0],
-                                    horas: item.horas,
+                                    horas: parseFloat(item.horas) || 0,
                                     estado_pago: 'fondo',
                                     estado_confirmacion: 'en_espera'
                                 }
                             ]);
+                            registrosExitosos++;
                         }
                     }
-                    await enviarMensajeWhatsApp(chatId, resultado.respuesta_whatsapp);
+                    if (registrosExitosos > 0) {
+                        await enviarMensajeWhatsApp(chatId, `✅ ¡Éxito! He procesado la foto y registré las horas de *${registrosExitosos} trabajadores* en Supabase.`);
+                    } else {
+                        await enviarMensajeWhatsApp(chatId, "⚠️ Pude leer la foto, pero la obra mencionada no coincide con las de Supabase.");
+                    }
                     return;
                 }
             } catch (err) {
-                console.error("❌ Error al parsear JSON de Visión:", err);
-                await enviarMensajeWhatsApp(chatId, "❌ Hubo un problema al interpretar los datos de la fotografía. Intenta tomarla con mejor luz o más cerca.");
-                return;
+                console.error(err);
             }
+            await enviarMensajeWhatsApp(chatId, "❌ No se pudo extraer la información de la imagen de forma limpia.");
             return;
         }
 
-        // 📝 FLUJO NORMAL SI EL USUARIO MANDA TEXTO
         let textoNormalizado = textoUsuario.toLowerCase().trim()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
 
-        // Comandos rápidos de Admin
         if (tienePermisosJefe) {
             if (textoNormalizado === 'disparar bienvenida masiva') {
                 await enviarMensajeWhatsApp(chatId, "⏳ Iniciando el envío de mensajes de bienvenida...");
@@ -246,11 +310,9 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
                         if (telefonoNuevo.startsWith('1') && telefonoNuevo.length > 10) {
                             telefonoNuevo = telefonoNuevo.substring(1);
                         }
-
                         const { error } = await supabase.from('empleados').insert([
                             { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
                         ]);
-
                         if (error) throw error;
                         await enviarMensajeWhatsApp(chatId, `✅ *¡Listo!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* en Supabase.`);
                         return;
@@ -263,7 +325,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
             }
         }
 
-        // Consultas de dirección de obra
         const tieneHorasNumeros = /\b\d+\b/.test(textoNormalizado); 
         if (!tieneHorasNumeros && (textoNormalizado.includes('donde es') || textoNormalizado.includes('direccion') || textoNormalizado.trim() === 'obra')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
@@ -273,9 +334,8 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
             return;
         }
 
-        // IA para procesar reportes de texto
         const promptSistema = `
-        Eres el asistente de "Ariar Steel". Hablas con ${usuario.nombre} (Rol: ${usuario.role || usuario.rol}).
+        Eres el asistente de "Ariar Steel". Hablas con ${usuario.nombre} (Rol: ${usuario.rol}).
         Si reporta horas, responde estrictamente en este formato JSON:
         {
           "es_reporte_horas": true,
@@ -299,7 +359,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
 
         if (contenidoRespuesta.startsWith('{') && contenidoRespuesta.endsWith('}')) {
             const resultado = JSON.parse(contenidoRespuesta);
-
             if (resultado.es_reporte_horas) {
                 if (tienePermisosJefe) {
                     for (const item of resultado.datos) {

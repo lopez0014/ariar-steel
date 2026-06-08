@@ -16,7 +16,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN; 
 const PORT = process.env.PORT || 10000;
 
-// Función estándar para enviar mensajes de texto
+// Función estándar para enviar mensajes de texto por WhatsApp
 async function enviarMensajeWhatsApp(chatId, texto) {
     try {
         await axios.post('https://gate.whapi.cloud/messages/text', {
@@ -34,11 +34,75 @@ async function enviarMensajeWhatsApp(chatId, texto) {
     }
 }
 
+// Función para descargar la foto desde los servidores de Whapi y convertirla a Base64
+async function descargarImagenBase64(mediaUrl) {
+    try {
+        const respuesta = await axios.get(mediaUrl, {
+            headers: { 'Authorization': `Bearer ${WHAPI_TOKEN}` },
+            responseType: 'arraybuffer'
+        });
+        return Buffer.from(respuesta.data, 'binary').toString('base64');
+    } catch (err) {
+        console.error("❌ Error al descargar imagen de Whapi:", err.message);
+        throw err;
+    }
+}
+
+// Función interna para el envío masivo de bienvenida
+async function ejecutarEnvioMasivo() {
+    const { data: trabajadores, error } = await supabase
+        .from('empleados')
+        .select('nombre, telefono')
+        .eq('estado', 'activo')
+        .eq('rol', 'trabajador');
+
+    if (error) throw error;
+    if (!trabajadores || trabajadores.length === 0) {
+        return { exito: false, conteo: 0, msg: "No encontré trabajadores activos en Supabase." };
+    }
+
+    for (const t of trabajadores) {
+        const chatId = `${t.telefono}@c.us`;
+        const mensaje = `¡Hola *${t.nombre}*! 🛠️\n\nSoy el asistente virtual oficial de *Ariar Steel*. A partir de ahora, estaré encargado de llevar el control de tus horas de trabajo junto con tu encargado para que todo tu pago esté siempre en orden y al día.\n\nNo es necesario que respondas a este mensaje, ¡que tengas una excelente jornada laboral! 🦾🔥`;
+        await enviarMensajeWhatsApp(chatId, mensaje);
+    }
+
+    return { exito: true, conteo: trabajadores.length };
+}
+
 // ==========================================
 // ⏰ TAREAS AUTOMÁTICAS (CRON JOBS)
 // ==========================================
 
-// 1. Recordatorio de la mañana - Todos los días a las 7:00 AM
+// 🧪 1. CRON DE PRUEBA - Hoy a las 9:30 PM (Hora 21:30)
+cron.schedule('30 21 * * *', async () => {
+    console.log("⏰ Ejecutando prueba automatizada de las 9:30 PM...");
+    try {
+        const { data: trabajadores } = await supabase
+            .from('empleados')
+            .select('nombre, telefono')
+            .eq('estado', 'activo')
+            .eq('rol', 'trabajador');
+
+        if (!trabajadores || trabajadores.length === 0) {
+            console.log("⚠️ No se encontraron trabajadores activos para recibir la prueba.");
+            return;
+        }
+
+        for (const t of trabajadores) {
+            const chatId = `${t.telefono}@c.us`;
+            const mensaje = `¡Buen día, *${t.nombre}*! ☀️ *(Prueba de control de horas de las 9:30 PM)*\n\nRecuerda reportar tus horas con tu encargado al finalizar la jornada de hoy para que todo tu pago quede registrado a tiempo.\n\n¡Que tengas un excelente día de trabajo! 🛠️ *Ariar Steel*`;
+            await enviarMensajeWhatsApp(chatId, mensaje);
+        }
+    } catch (error) {
+        console.error("❌ Error en la prueba de las 9:30 PM:", error);
+    }
+}, {
+    scheduled: true,
+    timezone: "America/Chicago"
+});
+
+// 2. Recordatorio real de la mañana - Todos los días a las 7:00 AM
 cron.schedule('0 7 * * *', async () => {
     console.log("⏰ Ejecutando recordatorio automático de las 7:00 AM...");
     try {
@@ -60,19 +124,18 @@ cron.schedule('0 7 * * *', async () => {
     }
 }, {
     scheduled: true,
-    timezone: "America/Chicago" // Ajusta a tu zona horaria (ej: America/Chicago, America/New_York)
+    timezone: "America/Chicago"
 });
 
-// 2. Reporte del final del día - Todos los días a las 6:00 PM
+// 3. Reporte real del final del día - Todos los días a las 6:00 PM
 cron.schedule('0 18 * * *', async () => {
     console.log("⏰ Ejecutando reporte automático de las 6:00 PM...");
     try {
         const hoy = new Date().toISOString().split('T')[0];
 
-        // Buscar trabajadores activos
         const { data: trabajadores } = await supabase
             .from('empleados')
-            .select('id, nombre, telefono')
+            .select('id, Exton, nombre, telefono')
             .eq('estado', 'activo')
             .eq('rol', 'trabajador');
 
@@ -81,7 +144,6 @@ cron.schedule('0 18 * * *', async () => {
         for (const t of trabajadores) {
             const chatId = `${t.telefono}@c.us`;
 
-            // Buscar si se le registraron horas hoy
             const { data: horasHoy } = await supabase
                 .from('registro_horas')
                 .select('horas, nombre_obra')
@@ -89,7 +151,6 @@ cron.schedule('0 18 * * *', async () => {
                 .eq('fecha', hoy);
 
             if (horasHoy && horasHoy.length > 0) {
-                // Si tiene horas asignadas
                 let detalleHoras = "";
                 horasHoy.forEach(reg => {
                     detalleHoras += `📍 *Obra:* ${reg.nombre_obra} | ⏱️ *Horas:* ${reg.horas} hrs.\n`;
@@ -98,7 +159,6 @@ cron.schedule('0 18 * * *', async () => {
                 const mensajeConHoras = `Hola *${t.nombre}*! 👍\n\nEste es el resumen de tus horas registradas el día de hoy (*${hoy}*):\n\n${detalleHoras}\nSi ves algún error o falta alguna obra, avísale de inmediato a tu encargado para corregirlo.`;
                 await enviarMensajeWhatsApp(chatId, mensajeConHoras);
             } else {
-                // Si se olvidó registrarlo o no trabajó
                 const mensajeSinHoras = `Hola *${t.nombre}*. ⚠️\n\nEl día de hoy no se encontraron horas registradas a tu nombre en el sistema.\n\nSi trabajaste hoy, por favor comunícate de inmediato con tu encargado para que agregue tus horas correctamente.`;
                 await enviarMensajeWhatsApp(chatId, mensajeSinHoras);
             }
@@ -111,40 +171,9 @@ cron.schedule('0 18 * * *', async () => {
     timezone: "America/Chicago"
 });
 
-// [El resto del código de tus Webhooks, envío masivo y API se mantiene exactamente igual abajo...]
-async function descargarImagenBase64(mediaUrl) {
-    try {
-        const respuesta = await axios.get(mediaUrl, {
-            headers: { 'Authorization': `Bearer ${WHAPI_TOKEN}` },
-            responseType: 'arraybuffer'
-        });
-        return Buffer.from(respuesta.data, 'binary').toString('base64');
-    } catch (err) {
-        console.error("❌ Error al descargar imagen de Whapi:", err.message);
-        throw err;
-    }
-}
-
-async function ejecutarEnvioMasivo() {
-    const { data: trabajadores, error } = await supabase
-        .from('empleados')
-        .select('nombre, telefono')
-        .eq('estado', 'activo')
-        .eq('rol', 'trabajador');
-
-    if (error) throw error;
-    if (!trabajadores || trabajadores.length === 0) {
-        return { exito: false, conteo: 0, msg: "No encontré trabajadores activos en Supabase." };
-    }
-
-    for (const t of trabajadores) {
-        const chatId = `${t.telefono}@c.us`;
-        const mensaje = `¡Hola *${t.nombre}*! 🛠️\n\nSoy el asistente virtual oficial de *Ariar Steel*. A partir de ahora, estaré encargado de llevar el control de tus horas de trabajo junto con tu encargado para que todo tu pago esté siempre en orden y al día.\n\nNo es necesario que respondas a este mensaje, ¡que tengas una excelente jornada laboral! 🦾🔥`;
-        await enviarMensajeWhatsApp(chatId, mensaje);
-    }
-
-    return { exito: true, conteo: trabajadores.length };
-}
+// ==========================================
+// 📡 WEBHOOKS Y ENRUTAMIENTO API
+// ==========================================
 
 app.get('/enviar-bienvenida-masiva', async (req, res) => {
     try {
@@ -196,7 +225,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario, es
                 await supabase.from('empleados').insert([
                     { nombre: nombreLimpio, telefono: telefonoUsuario, rol: 'trabajador', estado: 'pendiente_aprobacion' }
                 ]);
-                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLoptio || nombreLimpio}*. Quedas en espera de aprobación.`);
+                await enviarMensajeWhatsApp(chatId, `¡Hola! He registrado tu nombre: *${nombreLimpio}*. Quedas en espera de aprobación.`);
                 return;
             } else {
                 await enviarMensajeWhatsApp(chatId, "¡Hola! No encuentro tu número registrado en Ariar Steel. Escribe tu *Nombre y Apellido* completo.");

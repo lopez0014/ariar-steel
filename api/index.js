@@ -56,34 +56,46 @@ app.post('/webhook', async (req, res) => {
 async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
     try {
         console.log(`✉️ Procesando para ${telefonoUsuario}: "${textoUsuario}"`);
-        const textoLimpio = textoUsuario.toLowerCase().trim();
+        
+        // Limpiamos el texto quitándole acentos raros para que el sistema no se confunda
+        let textoNormalizado = textoUsuario.toLowerCase().trim()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Quita acentos (número -> numero)
 
-        // 👑 1. FILTRO PARA EDWIN: AGREGAR EMPLEADOS
+        // 👑 1. FILTRO ULTRA-TOLERANTE PARA EDWIN (AGREGAR EMPLEADOS)
         if (telefonoUsuario.includes('7373883909')) {
-            if (textoLimpio.startsWith('agregar a') && (textoLimpio.includes('numero') || textoLimpio.includes('número'))) {
+            if (textoNormalizado.startsWith('agregar a')) {
                 try {
-                    const partes = textoUsuario.split(/con el numero|con el número/i);
-                    const nombreNuevo = partes[0].replace(/agregar a/i, '').trim();
-                    let telefonoNuevo = partes[1].trim().replace(/[^0-9]/g, ''); 
+                    // Cortamos usando expresiones regulares para que acepte "con el numero", "numero", "num", o "con el numero"
+                    const partes = textoUsuario.split(/con el numero|con el número|numero|número/i);
                     
-                    if (nombreNuevo && telefonoNuevo) {
-                        if (telefonoNuevo.startsWith('1') && telefonoNuevo.length > 10) {
-                            telefonoNuevo = telefonoNuevo.substring(1);
+                    if (partes.length >= 2) {
+                        const nombreNuevo = partes[0].replace(/agregar a/i, '').trim();
+                        let telefonoNuevo = partes[1].trim().replace(/[^0-9]/g, ''); // Deja SOLO los números
+
+                        if (nombreNuevo && telefonoNuevo) {
+                            // Si el número viene con el '1' de USA al inicio y es largo, se lo quitamos
+                            if (telefonoNuevo.startsWith('1') && telefonoNuevo.length > 10) {
+                                telefonoNuevo = telefonoNuevo.substring(1);
+                            }
+
+                            // Guardamos directo en Supabase como activo
+                            const { error } = await supabase.from('empleados').insert([
+                                { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
+                            ]);
+
+                            if (error) throw error;
+
+                            await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo en Supabase. Ya puede usar el sistema.`);
+                            return; 
                         }
-
-                        const { error } = await supabase.from('empleados').insert([
-                            { nombre: nombreNuevo, telefono: telefonoNuevo, rol: 'trabajador', estado: 'activo' }
-                        ]);
-
-                        if (error) throw error;
-
-                        await enviarMensajeWhatsApp(chatId, `✅ *¡Listo Edwin!* He registrado a *${nombreNuevo}* con el número *${telefonoNuevo}* como trabajador activo.`);
-                        return; 
                     }
                 } catch (err) {
-                    await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.* Escríbeme: _Agregar a Nombre Apellido con el numero 1234567890_");
-                    return;
+                    console.error("❌ Error al registrar:", err);
                 }
+                
+                // Si entra a "agregar a" pero no se procesó bien, le da un ejemplo masticadito
+                await enviarMensajeWhatsApp(chatId, "❌ *Error de formato.*\n\nEscríbeme exactamente así (copia, pega y cambia los datos):\n\n_Agregar a Melvin Pop con el numero 7371112222_");
+                return;
             }
         }
 
@@ -115,7 +127,7 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         }
 
         // 📍 3. CONSULTA DE OBRAS DIRECTA
-        if (textoLimpio.includes('obra') || textoLimpio.includes('donde') || textoLimpio.includes('dirección')) {
+        if (textoNormalizado.includes('obra') || textoNormalizado.includes('donde') || textoNormalizado.includes('direccion')) {
             const { data: listaObras } = await supabase.from('obras').select('nombre, direccion, especificaciones').limit(1);
             if (listaObras && listaObras.length > 0) {
                 await enviarMensajeWhatsApp(chatId, `📍 *Información de la Obra (${listaObras[0].nombre}):*\n\n*Dirección:* ${listaObras[0].direccion}\n\n*Indicaciones:* ${listaObras[0].especificaciones || 'Sin notas adicionales.'}`);
@@ -126,14 +138,13 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
         }
 
         // 🤖 4. MÓDULO INTELIGENCIA ARTIFICIAL (OpenAI)
-        // 🔥 Aquí domamos a la IA para que deje de despedirse con la misma frase molesta
         const promptSistema = `
         Eres el asistente automatizado de la empresa "Ariar Steel".
         El usuario con el que hablas se llama ${usuario.nombre} y tiene el rango de ${usuario.rol}.
         
         REGLAS DE ORO DE TU COMPORTAMIENTO:
         1. Responde de forma directa, concisa y al grano. No uses rodeos.
-        2. 🛑 PROHIBIDO: Jamás termines tus mensajes diciendo "cómo te puedo ayudar hoy", "¿en qué más te ayudo?", ni frases similares de servicio al cliente. Sé un asistente serio de construcción.
+        2. 🛑 PROHIBIDO: Jamás termines tus mensajes diciendo "cómo te puedo ayudar hoy", "¿en qué más te ayudo?", ni frases similares. Sé un asistente serio de construcción.
         3. Da la información solicitada en un solo bloque de texto corto y termina ahí. No agregues saludos extras al final.
         
         Si te reporta horas de trabajo, responde ESTRICTAMENTE con este formato JSON y nada más:
@@ -180,7 +191,6 @@ async function processarMensajeDeFondo(chatId, telefonoUsuario, textoUsuario) {
             }
         }
 
-        // Envía el texto directo de la IA (que ya tiene prohibido decir la frase)
         await enviarMensajeWhatsApp(chatId, contenidoRespuesta);
         return; 
 
